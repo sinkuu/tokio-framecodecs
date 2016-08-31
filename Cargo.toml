@@ -1,0 +1,11 @@
+[package]
+name = "framecodecs"
+version = "0.1.0"
+authors = ["sinkuu <sinkuupump@gmail.com>"]
+
+[dependencies]
+tokio-core = { git = "https://github.com/tokio-rs/tokio-core" }
+tokio-proto = { git = "https://github.com/tokio-rs/tokio-proto" }
+futures = { git = "https://github.com/alexcrichton/futures-rs" }
+bytes = { git = "https://github.com/carllerche/bytes" }
+log = "0.3"
