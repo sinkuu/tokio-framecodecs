@@ -16,7 +16,7 @@ impl<D: Delimiter> Parse for Parser<D> {
 
     fn parse(&mut self, buf: &mut BlockBuf) -> Option<Frame> {
         self.delimiter
-            .delimit(buf)
+            .pop_buf(buf)
             .map(|frame| pipeline::Frame::Message(frame))
     }
 }
@@ -40,12 +40,12 @@ impl<D: Delimiter> Serialize for Serializer<D> {
 }
 
 pub trait Delimiter {
-    fn delimit(&self, buf: &mut BlockBuf) -> Option<Vec<u8>>;
+    fn pop_buf(&self, buf: &mut BlockBuf) -> Option<Vec<u8>>;
     fn write_deliimiter<B: MutBuf>(&self, buf: &mut B);
 }
 
 impl Delimiter for u8 {
-    fn delimit(&self, buf: &mut BlockBuf) -> Option<Vec<u8>> {
+    fn pop_buf(&self, buf: &mut BlockBuf) -> Option<Vec<u8>> {
         buf.compact();
 
         let pos = buf.bytes()
@@ -72,9 +72,9 @@ fn test_delimiter_u8() {
 
     let delimiter = 0;
 
-    assert_eq!(delimiter.delimit(&mut buf), Some(vec![1u8]));
-    assert_eq!(delimiter.delimit(&mut buf), Some(vec![2u8]));
-    assert_eq!(delimiter.delimit(&mut buf), None);
+    assert_eq!(delimiter.pop_buf(&mut buf), Some(vec![1u8]));
+    assert_eq!(delimiter.pop_buf(&mut buf), Some(vec![2u8]));
+    assert_eq!(delimiter.pop_buf(&mut buf), None);
 
     delimiter.write_deliimiter(&mut buf);
     buf.compact();
@@ -82,7 +82,7 @@ fn test_delimiter_u8() {
 }
 
 impl Delimiter for char {
-    fn delimit(&self, buf: &mut BlockBuf) -> Option<Vec<u8>> {
+    fn pop_buf(&self, buf: &mut BlockBuf) -> Option<Vec<u8>> {
         buf.compact();
 
         let pos = match buf.bytes().map(|bs| ::std::str::from_utf8(bs)) {
@@ -146,13 +146,65 @@ fn test_delimiter_char() {
 
     let delimiter = '、';
 
-    assert_eq!(delimiter.delimit(&mut buf),
+    assert_eq!(delimiter.pop_buf(&mut buf),
                Some("あめ".as_bytes().to_vec()));
-    assert_eq!(delimiter.delimit(&mut buf),
+    assert_eq!(delimiter.pop_buf(&mut buf),
                Some("つち".as_bytes().to_vec()));
-    assert_eq!(delimiter.delimit(&mut buf), None);
+    assert_eq!(delimiter.pop_buf(&mut buf), None);
 
     delimiter.write_deliimiter(&mut buf);
     buf.compact();
     assert_eq!(buf.bytes().unwrap(), "、".as_bytes());
+}
+
+#[derive(Debug)]
+pub struct LineDelimiter;
+// TODO: config
+
+impl Delimiter for LineDelimiter {
+    fn pop_buf(&self, buf: &mut BlockBuf) -> Option<Vec<u8>> {
+        buf.compact();
+
+        match buf.bytes() {
+                None => return None,
+                Some(bs) => bs.into_iter().position(|&c| c == b'\r' || c == b'\n'),
+            }
+            .and_then(move |pos| {
+                let shift = buf.shift(pos + 1);
+                let bs = shift.buf();
+                let bs = bs.bytes();
+
+                // shift another 1-byte if line breaker is "\r\n""
+                if !buf.is_empty() && *bs.last().unwrap() == b'\r' {
+                    if buf.buf().peek_byte() == Some(b'\n') {
+                        buf.shift(1);
+                    }
+                }
+
+                bs.split_last()
+                    .map(|(_, frame)| frame.into())
+            })
+    }
+
+    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
+        buf.write_slice(b"\n");
+    }
+}
+
+#[test]
+fn test_delimiter_line() {
+    let mut buf = BlockBuf::default();
+    buf.write_slice("あめ\nつち\r\n".as_bytes());
+
+    let delimiter = LineDelimiter;
+
+    assert_eq!(delimiter.pop_buf(&mut buf),
+               Some("あめ".as_bytes().to_vec()));
+    assert_eq!(delimiter.pop_buf(&mut buf),
+               Some("つち".as_bytes().to_vec()));
+    assert_eq!(delimiter.pop_buf(&mut buf), None);
+
+    delimiter.write_deliimiter(&mut buf);
+    buf.compact();
+    assert_eq!(buf.bytes().unwrap(), "\n".as_bytes());
 }
