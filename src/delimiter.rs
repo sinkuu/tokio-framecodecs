@@ -47,6 +47,7 @@ pub trait Delimiter {
 impl Delimiter for u8 {
     fn pop_buf(&self, buf: &mut BlockBuf) -> Option<Vec<u8>> {
         buf.compact();
+        assert_debug!(buf.is_compact());
 
         let pos = buf.bytes()
             .and_then(|bs| bs.into_iter().position(|x| x == self));
@@ -84,6 +85,7 @@ fn test_delimiter_u8() {
 impl Delimiter for char {
     fn pop_buf(&self, buf: &mut BlockBuf) -> Option<Vec<u8>> {
         buf.compact();
+        assert_debug!(buf.is_compact());
 
         let pos = match buf.bytes().map(|bs| ::std::str::from_utf8(bs)) {
             None => return None,
@@ -161,9 +163,11 @@ fn test_delimiter_char() {
 pub struct LineDelimiter;
 // TODO: config
 
+// NOTE: parses '\r', '\n', '\r\n', writes '\n'
 impl Delimiter for LineDelimiter {
     fn pop_buf(&self, buf: &mut BlockBuf) -> Option<Vec<u8>> {
         buf.compact();
+        assert_debug!(buf.is_compact());
 
         match buf.bytes() {
                 None => return None,
@@ -174,7 +178,7 @@ impl Delimiter for LineDelimiter {
                 let bs = shift.buf();
                 let bs = bs.bytes();
 
-                // shift another 1-byte if line breaker is "\r\n""
+                // shift another 1-byte if line breaker is "\r\n"
                 if !buf.is_empty() && *bs.last().unwrap() == b'\r' {
                     if buf.buf().peek_byte() == Some(b'\n') {
                         buf.shift(1);
