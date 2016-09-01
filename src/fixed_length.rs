@@ -51,3 +51,19 @@ pub fn new<T: tokio_proto::io::Stream>(transport: T, length: usize) -> FixedLeng
                 BlockBuf::default(),
                 BlockBuf::default())
 }
+
+#[test]
+fn test_fixed_length() {
+    let mut p = Parser { length: 5 };
+
+    let mut buf = BlockBuf::default();
+    buf.write_slice(b"abcdefghijkl");
+
+    assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), b"abcde".to_vec());
+    assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), b"fghij".to_vec());
+    assert!(p.parse(&mut buf).is_none());
+
+    buf.write_slice(b"mno");
+
+    assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), b"klmno".to_vec());
+}
