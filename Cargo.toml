@@ -9,3 +9,4 @@ tokio-proto = { git = "https://github.com/tokio-rs/tokio-proto" }
 futures = { git = "https://github.com/alexcrichton/futures-rs" }
 bytes = { git = "https://github.com/carllerche/bytes" }
 log = "0.3"
+aho-corasick = "0.5.2"
