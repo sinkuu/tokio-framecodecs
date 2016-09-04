@@ -1,10 +1,60 @@
-use tokio_proto::io::{Parse, Serialize, Framed};
+use tokio_proto::io::{Parse, Serialize, Framed, Transport, Readiness};
 use tokio_proto::proto::pipeline;
 use bytes::{Buf, BlockBuf, MutBuf};
 use std::io;
 use aho_corasick::{Automaton, AcAutomaton, Sparse};
 
-pub type DelimiterTransport<T, D> = Framed<T, Parser<D>, Serializer<D>>;
+pub struct DelimiterTransport<T, D: Delimiter> {
+    inner: Framed<T, Parser<D>, Serializer<D>>,
+}
+
+impl<T, D> DelimiterTransport<T, D>
+    where T: ::tokio_proto::io::Stream,
+          D: Delimiter + Clone
+{
+    pub fn new(upstream: T, delimiter: D, rd: BlockBuf, wr: BlockBuf) -> Self {
+        DelimiterTransport {
+            inner: Framed::new(upstream,
+                               Parser { delimiter: delimiter.clone() },
+                               Serializer { delimiter: delimiter },
+                               rd,
+                               wr),
+        }
+    }
+}
+
+impl<T, D> Transport for DelimiterTransport<T, D>
+    where T: ::tokio_proto::io::Stream,
+          D: Delimiter
+{
+    type In = Frame;
+    type Out = Frame;
+
+    fn read(&mut self) -> io::Result<Option<Self::Out>> {
+        self.inner.read()
+    }
+
+    fn write(&mut self, msg: Self::In) -> io::Result<Option<()>> {
+        self.inner.write(msg)
+    }
+
+    fn flush(&mut self) -> io::Result<Option<()>> {
+        self.inner.flush()
+    }
+}
+
+impl<T, D> Readiness for DelimiterTransport<T, D>
+    where T: ::tokio_proto::io::Stream,
+          D: Delimiter
+{
+    fn is_readable(&self) -> bool {
+        self.inner.is_readable()
+    }
+
+    fn is_writable(&self) -> bool {
+        self.inner.is_writable()
+    }
+}
 
 pub type Frame = pipeline::Frame<Vec<u8>, io::Error>;
 
