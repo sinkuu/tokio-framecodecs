@@ -1,15 +1,17 @@
-use tokio_proto::io::{Parse, Serialize, Framed, Transport, Readiness};
-use tokio_proto::proto::pipeline;
-use bytes::{Buf, BlockBuf, MutBuf};
+use bytes::buf::BlockBuf;
+use bytes::{Buf, MutBuf};
+use futures::{Async, Poll};
 use std::io;
-use aho_corasick::{Automaton, AcAutomaton, Sparse};
+use tokio_core::io::{FramedIo, Io};
+use tokio_proto::{pipeline, Framed, Parse, Serialize};
+use super::Frame;
 
 pub struct DelimiterTransport<T, D: Delimiter> {
     inner: Framed<T, Parser<D>, Serializer<D>>,
 }
 
 impl<T, D> DelimiterTransport<T, D>
-    where T: ::tokio_proto::io::Stream,
+    where T: Io,
           D: Delimiter + Clone
 {
     pub fn new(upstream: T, delimiter: D, rd: BlockBuf, wr: BlockBuf) -> Self {
@@ -23,40 +25,33 @@ impl<T, D> DelimiterTransport<T, D>
     }
 }
 
-impl<T, D> Transport for DelimiterTransport<T, D>
-    where T: ::tokio_proto::io::Stream,
+impl<T, D> FramedIo for DelimiterTransport<T, D>
+    where T: Io,
           D: Delimiter
 {
     type In = Frame;
     type Out = Frame;
 
-    fn read(&mut self) -> io::Result<Option<Self::Out>> {
+    fn poll_read(&mut self) -> Async<()> {
+        self.inner.poll_read()
+    }
+
+    fn read(&mut self) -> Poll<Self::Out, io::Error> {
         self.inner.read()
     }
 
-    fn write(&mut self, msg: Self::In) -> io::Result<Option<()>> {
-        self.inner.write(msg)
+    fn poll_write(&mut self) -> Async<()> {
+        self.inner.poll_write()
     }
 
-    fn flush(&mut self) -> io::Result<Option<()>> {
+    fn write(&mut self, req: Self::In) -> Poll<(), io::Error> {
+        self.inner.write(req)
+    }
+
+    fn flush(&mut self) -> Poll<(), io::Error> {
         self.inner.flush()
     }
 }
-
-impl<T, D> Readiness for DelimiterTransport<T, D>
-    where T: ::tokio_proto::io::Stream,
-          D: Delimiter
-{
-    fn is_readable(&self) -> bool {
-        self.inner.is_readable()
-    }
-
-    fn is_writable(&self) -> bool {
-        self.inner.is_writable()
-    }
-}
-
-pub type Frame = pipeline::Frame<Vec<u8>, io::Error>;
 
 pub struct Parser<D: Delimiter> {
     pub delimiter: D,
@@ -66,8 +61,7 @@ impl<D: Delimiter> Parse for Parser<D> {
     type Out = Frame;
 
     fn parse(&mut self, buf: &mut BlockBuf) -> Option<Frame> {
-        match self.delimiter
-            .pop_buf(buf) {
+        match self.delimiter.pop_buf(buf) {
             Ok(Some(frame)) => Some(pipeline::Frame::Message(frame)),
             Ok(None) => None,
             Err(e) => Some(pipeline::Frame::Error(e)),
@@ -123,12 +117,13 @@ impl Delimiter for u8 {
 #[test]
 fn test_delimiter_u8() {
     let mut buf = BlockBuf::default();
-    buf.write_slice(&[1, 0, 2, 0]);
+    buf.write_slice(&[1, 0, 2, 0, 0]);
 
     let delimiter = 0;
 
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![1u8]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![2u8]));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
     delimiter.write_deliimiter(&mut buf);
@@ -197,7 +192,7 @@ impl Delimiter for char {
 #[test]
 fn test_delimiter_char() {
     let mut buf = BlockBuf::default();
-    buf.write_slice("あめ、つち、".as_bytes());
+    buf.write_slice("あめ、つち、、".as_bytes());
 
     let delimiter = '、';
 
@@ -205,6 +200,8 @@ fn test_delimiter_char() {
                Some("あめ".as_bytes().to_vec()));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+               Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
     delimiter.write_deliimiter(&mut buf);
@@ -232,10 +229,8 @@ impl Delimiter for LineDelimiter {
                 let bs = bs.bytes();
 
                 // shift another 1-byte if line breaker is "\r\n"
-                if !buf.is_empty() && *bs.last().unwrap() == b'\r' {
-                    if buf.buf().peek_u8() == Some(b'\n') {
-                        buf.shift(1);
-                    }
+                if !buf.is_empty() && bs.last() == Some(&b'\r') && buf.buf().peek_u8() == Some(b'\n') {
+                    buf.shift(1);
                 }
 
                 bs.split_last()
@@ -253,7 +248,7 @@ impl Delimiter for LineDelimiter {
 #[test]
 fn test_delimiter_line() {
     let mut buf = BlockBuf::default();
-    buf.write_slice("あめ\nつち\r\n".as_bytes());
+    buf.write_slice("あめ\nつち\r\n\n".as_bytes());
 
     let delimiter = LineDelimiter;
 
@@ -261,6 +256,8 @@ fn test_delimiter_line() {
                Some("あめ".as_bytes().to_vec()));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+               Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
     delimiter.write_deliimiter(&mut buf);
@@ -268,56 +265,55 @@ fn test_delimiter_line() {
     assert_eq!(buf.bytes().unwrap(), b"\n");
 }
 
-struct SequenceDelimiter<'a> {
-    aut: AcAutomaton<&'a [u8], Sparse>,
-    seq: &'a [u8],
-}
-
-impl<'a> SequenceDelimiter<'a> {
-    fn new(seq: &'a [u8]) -> Self {
-        SequenceDelimiter {
-            aut: AcAutomaton::with_transitions(::std::iter::once(seq)),
-            seq: seq,
-        }
-    }
-}
-
-impl<'a> Delimiter for SequenceDelimiter<'a> {
+impl<'a> Delimiter for &'a [u8] {
     fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
-        if buf.len() < self.seq.len() {
+        if buf.len() < self.len() {
             return Ok(None);
         }
 
         buf.compact();
         debug_assert!(buf.is_compact());
 
-        let start = buf.bytes().and_then(|b| self.aut.find(b).next().map(|m| m.start));
+        let start = buf.bytes()
+            .and_then(|b| {
+                debug_assert!(buf.len() >= self.len());
+                for i in 0 .. b.len() - self.len() + 1 {
+                    if b[i..].starts_with(self) {
+                        return Some(i);
+                    }
+                }
+
+                None
+            });
 
         Ok(start.map(move |start| {
-            let b = buf.shift(start + self.seq.len());
+            let b = buf.shift(start + self.len());
             (&b.buf().bytes()[..start]).into()
         }))
     }
 
     fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
-        buf.write_slice(self.seq);
+        buf.write_slice(self);
     }
 }
 
 #[test]
 fn test_delimiter_seq() {
     let mut buf = BlockBuf::default();
-    buf.write_slice("あめ#\0#つち#\0#".as_bytes());
+    buf.write_slice("あめ#\0#つち#\0##\0#".as_bytes());
 
-    let delimiter = SequenceDelimiter::new(b"#\0#");
+    let delimiter = &b"#\0#"[..];
 
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("あめ".as_bytes().to_vec()));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+               Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
     delimiter.write_deliimiter(&mut buf);
     buf.compact();
     assert_eq!(buf.bytes().unwrap(), b"#\0#");
 }
+

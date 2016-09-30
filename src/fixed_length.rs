@@ -1,12 +1,54 @@
-use tokio_proto;
-use tokio_proto::io::{Parse, Serialize, Framed};
-use tokio_proto::proto::pipeline;
-use bytes::{Buf, BlockBuf, MutBuf};
+use tokio_core::io::{Io, FramedIo};
+use tokio_proto::{Parse, Serialize, Framed};
+use tokio_proto::pipeline;
+use bytes::{Buf, MutBuf};
+use bytes::buf::BlockBuf;
+use futures::{Async, Poll};
 use std::io;
+use super::Frame;
 
-pub type FixedLengthTransport<T> = Framed<T, Parser, Serializer>;
+pub struct FixedLengthTransport<T> {
+    inner: Framed<T, Parser, Serializer>,
+}
 
-pub type Frame = pipeline::Frame<Vec<u8>, io::Error>;
+impl<T> FixedLengthTransport<T> where T: Io {
+    pub fn new(transport: T, length: usize) -> FixedLengthTransport<T> {
+        FixedLengthTransport {
+            inner: Framed::new(transport,
+                        Parser { length: length },
+                        Serializer { length: length },
+                        BlockBuf::default(),
+                        BlockBuf::default()),
+        }
+    }
+}
+
+impl<T> FramedIo for FixedLengthTransport<T>
+    where T: Io
+{
+    type In = Frame;
+    type Out = Frame;
+
+    fn poll_read(&mut self) -> Async<()> {
+        self.inner.poll_read()
+    }
+
+    fn read(&mut self) -> Poll<Self::Out, io::Error> {
+        self.inner.read()
+    }
+
+    fn poll_write(&mut self) -> Async<()> {
+        self.inner.poll_write()
+    }
+
+    fn write(&mut self, req: Self::In) -> Poll<(), io::Error> {
+        self.inner.write(req)
+    }
+
+    fn flush(&mut self) -> Poll<(), io::Error> {
+        self.inner.flush()
+    }
+}
 
 pub struct Parser {
     pub length: usize,
@@ -44,14 +86,6 @@ impl Serialize for Serializer {
     }
 }
 
-pub fn new<T: tokio_proto::io::Stream>(transport: T, length: usize) -> FixedLengthTransport<T> {
-    Framed::new(transport,
-                Parser { length: length },
-                Serializer { length: length },
-                BlockBuf::default(),
-                BlockBuf::default())
-}
-
 #[test]
 fn test_fixed_length() {
     let mut p = Parser { length: 5 };
@@ -67,3 +101,4 @@ fn test_fixed_length() {
 
     assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), b"klmno".to_vec());
 }
+
