@@ -144,8 +144,6 @@ impl Delimiter for char {
             Some(Ok(s)) => s.char_indices().find(|&(_, c)| c == *self).map(|(i, _)| i),
         };
 
-        println!("{:?}", pos);
-
         Ok(pos.map(move |pos| {
             let bs = buf.shift(pos + self.len_utf8());
             bs.buf()
@@ -297,12 +295,22 @@ impl<'a> Delimiter for &'a [u8] {
     }
 }
 
+impl Delimiter for Vec<u8> {
+    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
+        self.as_slice().pop_buf(buf)
+    }
+
+    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
+        buf.write_slice(self.as_slice());
+    }
+}
+
 #[test]
-fn test_delimiter_seq() {
+fn test_delimiter_vec() {
     let mut buf = BlockBuf::default();
     buf.write_slice("あめ#\0#つち#\0##\0#".as_bytes());
 
-    let delimiter = &b"#\0#"[..];
+    let delimiter = &b"#\0#"[..].to_vec();
 
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("あめ".as_bytes().to_vec()));
@@ -317,3 +325,43 @@ fn test_delimiter_seq() {
     assert_eq!(buf.bytes().unwrap(), b"#\0#");
 }
 
+
+impl<'a> Delimiter for &'a str {
+    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
+        self.as_bytes().pop_buf(buf)
+    }
+
+    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
+        buf.write_slice(self.as_bytes());
+    }
+}
+
+impl Delimiter for String {
+    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
+        self.as_bytes().pop_buf(buf)
+    }
+
+    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
+        buf.write_slice(self.as_bytes());
+    }
+}
+
+#[test]
+fn test_delimiter_string() {
+    let mut buf = BlockBuf::default();
+    buf.write_slice("あめ・\nつち・\n・\n".as_bytes());
+
+    let delimiter = "・\n";
+
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+               Some("あめ".as_bytes().to_vec()));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+               Some("つち".as_bytes().to_vec()));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+               Some(vec![]));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
+
+    delimiter.write_deliimiter(&mut buf);
+    buf.compact();
+    assert_eq!(buf.bytes().unwrap(), "・\n".as_bytes());
+}
