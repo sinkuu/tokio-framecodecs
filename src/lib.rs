@@ -11,3 +11,5 @@ pub type Frame = tokio_proto::pipeline::Frame<Vec<u8>, (), std::io::Error>;
 pub mod fixed_length;
 pub mod delimiter;
 pub mod length_field;
+
+pub mod framed_helper;
