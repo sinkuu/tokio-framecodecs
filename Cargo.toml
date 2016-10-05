@@ -2,6 +2,7 @@
 name = "framecodecs"
 version = "0.1.0"
 authors = ["sinkuu <sinkuupump@gmail.com>"]
+license = "MIT/Apache"
 
 [dependencies]
 tokio-core = "0.1"
