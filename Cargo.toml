@@ -7,6 +7,7 @@ license = "MIT/Apache"
 [dependencies]
 tokio-core = "0.1"
 tokio-proto = { git = "https://github.com/tokio-rs/tokio-proto" }
+tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
 futures = "0.1.1"
 bytes = { git = "https://github.com/carllerche/bytes" }
 log = "0.3"

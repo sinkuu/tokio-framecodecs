@@ -9,13 +9,13 @@ use byteorder::ByteOrder;
 use std::marker::PhantomData;
 use std::io;
 
-pub struct LengthField<B, T> {
+pub struct LengthFieldTransport<B, T> {
     pub inner: Framed<T, Parser<B>, Serializer<B>>,
 }
 
-impl<B: ByteOrder, T: Io> LengthField<B, T> {
-    pub fn new(transport: T, field_size: usize) -> LengthField<B, T> {
-        LengthField {
+impl<B: ByteOrder, T: Io> LengthFieldTransport<B, T> {
+    pub fn new(transport: T, field_size: usize) -> LengthFieldTransport<B, T> {
+        LengthFieldTransport {
             inner: Framed::new(transport,
                         Parser {
                             field_size: field_size,
@@ -32,7 +32,7 @@ impl<B: ByteOrder, T: Io> LengthField<B, T> {
     }
 }
 
-impl<B, T> FramedIo for LengthField<B, T>
+impl<B, T> FramedIo for LengthFieldTransport<B, T>
     where T: Io, B: ByteOrder
 {
     type In = Frame;
