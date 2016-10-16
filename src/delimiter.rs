@@ -33,34 +33,40 @@ impl<T, D> FramedIo for DelimiterTransport<T, D>
     type In = Frame;
     type Out = Frame;
 
+    #[inline]
     fn poll_read(&mut self) -> Async<()> {
         self.inner.poll_read()
     }
 
+    #[inline]
     fn read(&mut self) -> Poll<Self::Out, io::Error> {
         self.inner.read()
     }
 
+    #[inline]
     fn poll_write(&mut self) -> Async<()> {
         self.inner.poll_write()
     }
 
+    #[inline]
     fn write(&mut self, req: Self::In) -> Poll<(), io::Error> {
         self.inner.write(req)
     }
 
+    #[inline]
     fn flush(&mut self) -> Poll<(), io::Error> {
         self.inner.flush()
     }
 }
 
-pub struct Parser<D: Delimiter> {
+pub struct Parser<D> {
     pub delimiter: D,
 }
 
 impl<D: Delimiter> Parse for Parser<D> {
     type Out = Frame;
 
+    #[inline]
     fn parse(&mut self, buf: &mut BlockBuf) -> Option<Frame> {
         match self.delimiter.pop_buf(buf) {
             Ok(Some(frame)) => Some(pipeline::Frame::Message(frame)),
@@ -70,13 +76,14 @@ impl<D: Delimiter> Parse for Parser<D> {
     }
 }
 
-pub struct Serializer<D: Delimiter> {
+pub struct Serializer<D> {
     pub delimiter: D,
 }
 
 impl<D: Delimiter> Serialize for Serializer<D> {
     type In = Frame;
 
+    #[inline]
     fn serialize(&mut self, frame: Frame, buf: &mut BlockBuf) {
         match frame {
             pipeline::Frame::Message(v) => {
