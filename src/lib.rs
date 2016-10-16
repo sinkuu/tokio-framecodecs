@@ -3,6 +3,7 @@ extern crate tokio_core;
 extern crate tokio_proto;
 extern crate bytes;
 extern crate byteorder;
+extern crate memchr;
 #[macro_use]
 extern crate log;
 

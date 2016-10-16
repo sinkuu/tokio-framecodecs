@@ -5,6 +5,7 @@ use std::io;
 use tokio_core::io::{FramedIo, Io};
 use tokio_proto::{pipeline, Framed, Parse, Serialize};
 use super::Frame;
+use memchr;
 
 pub struct DelimiterTransport<T, D: Delimiter> {
     inner: Framed<T, Parser<D>, Serializer<D>>,
@@ -98,7 +99,7 @@ impl Delimiter for u8 {
         debug_assert!(buf.is_compact());
 
         let pos = buf.bytes()
-            .and_then(|bs| bs.into_iter().position(|x| x == self));
+            .and_then(|bs| memchr::memchr(*self, bs));
 
         Ok(pos.and_then(move |pos| {
             let bs = buf.shift(pos + 1);

@@ -12,6 +12,7 @@ futures = "0.1.1"
 bytes = { git = "https://github.com/carllerche/bytes" }
 log = "0.3"
 byteorder = "0.5.3"
+memchr = "0.1.11"
 
 [dependencies.clippy]
 version = "*"
