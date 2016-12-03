@@ -5,15 +5,9 @@ authors = ["sinkuu <sinkuupump@gmail.com>"]
 license = "MIT/Apache-2.0"
 
 [dependencies]
-tokio-core = "0.1"
+tokio-core = "0.1.1"
 tokio-proto = { git = "https://github.com/tokio-rs/tokio-proto" }
 tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
-futures = "0.1.1"
-bytes = { git = "https://github.com/carllerche/bytes" }
+futures = "0.1.6"
 log = "0.3"
-byteorder = "0.5.3"
 memchr = "0.1.11"
-
-[dependencies.clippy]
-version = "*"
-optional = true
