@@ -1,3 +1,3 @@
 # framecodecs
 
-Basic frame parser/serializers
+Basic frame codecs
