@@ -1,111 +1,89 @@
-use super::Frame;
-use tokio_core::io::{Io, FramedIo};
-use tokio_proto::{Parse, Serialize, Framed};
-use tokio_proto::pipeline;
-use bytes::{Buf, MutBuf};
-use bytes::buf::BlockBuf;
-use futures::{Async, Poll};
+use tokio_core::io::{Codec, Io, EasyBuf, Framed};
+use tokio_proto::pipeline::ServerProto;
 use byteorder::ByteOrder;
 use std::marker::PhantomData;
 use std::io;
 
-pub struct LengthFieldTransport<B, T> {
-    pub inner: Framed<T, Parser<B>, Serializer<B>>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LengthFieldProto<B> {
+    pub field_size: usize,
+    _byteorder: PhantomData<B>,
 }
 
-impl<B: ByteOrder, T: Io> LengthFieldTransport<B, T> {
-    pub fn new(transport: T, field_size: usize) -> LengthFieldTransport<B, T> {
-        LengthFieldTransport {
-            inner: Framed::new(transport,
-                        Parser {
-                            field_size: field_size,
-                            current_len: None,
-                            _byteorder: PhantomData,
-                        },
-                        Serializer {
-                            field_size: field_size,
-                            _byteorder: PhantomData,
-                        },
-                        BlockBuf::default(),
-                        BlockBuf::default()),
+impl<B> LengthFieldProto<B> {
+    pub fn new(field_size: usize) -> Self {
+        LengthFieldProto {
+            field_size: field_size,
+            _byteorder: PhantomData,
         }
     }
 }
 
-impl<B, T> FramedIo for LengthFieldTransport<B, T>
-    where T: Io, B: ByteOrder
-{
-    type In = Frame;
-    type Out = Frame;
+impl<B: ByteOrder + 'static, T: Io + 'static> ServerProto<T> for LengthFieldProto<B> {
+    type Request = Vec<u8>;
+    type Response = Vec<u8>;
+    type Error = io::Error;
+    type Transport = Framed<T, LengthFieldCodec<B>>;
+    type BindTransport = io::Result<Self::Transport>;
 
-    fn poll_read(&mut self) -> Async<()> {
-        self.inner.poll_read()
-    }
-
-    fn read(&mut self) -> Poll<Self::Out, io::Error> {
-        self.inner.read()
-    }
-
-    fn poll_write(&mut self) -> Async<()> {
-        self.inner.poll_write()
-    }
-
-    fn write(&mut self, req: Self::In) -> Poll<(), io::Error> {
-        self.inner.write(req)
-    }
-
-    fn flush(&mut self) -> Poll<(), io::Error> {
-        self.inner.flush()
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        Ok(io.framed(LengthFieldCodec::new(self.field_size)))
     }
 }
 
-pub struct Parser<B> {
-    pub field_size: usize,
+pub struct LengthFieldCodec<B> {
+    field_size: usize,
     current_len: Option<usize>,
     _byteorder: PhantomData<B>,
 }
 
-impl<B: ByteOrder> Parse for Parser<B> {
-    type Out = Frame;
+impl<B> LengthFieldCodec<B> {
+    fn new(field_size: usize) -> LengthFieldCodec<B> {
+        assert!(field_size <= ::std::mem::size_of::<usize>());
 
-    fn parse(&mut self, buf: &mut BlockBuf) -> Option<Frame> {
+        LengthFieldCodec {
+            field_size: field_size,
+            current_len: None,
+            _byteorder: PhantomData,
+        }
+    }
+}
+
+impl<B> From<LengthFieldProto<B>> for LengthFieldCodec<B> {
+    fn from(proto: LengthFieldProto<B>) -> LengthFieldCodec<B> {
+        LengthFieldCodec::new(proto.field_size)
+    }
+}
+
+impl<B: ByteOrder> Codec for LengthFieldCodec<B> {
+    type In = Vec<u8>;
+    type Out = Vec<u8>;
+
+    #[inline]
+    fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
         if self.current_len.is_none() && buf.len() >= self.field_size {
-            let bs = buf.shift(self.field_size);
-            self.current_len = Some(B::read_uint(bs.buf().bytes(), self.field_size) as usize);
+            let bs = buf.drain_to(self.field_size);
+            self.current_len = Some(B::read_uint(bs.as_slice(), self.field_size) as usize);
         }
 
         if let Some(cl) = self.current_len {
             if buf.len() >= cl {
-                let bs = buf.shift(cl);
+                let bs = buf.drain_to(cl);
                 self.current_len = None;
-                return Some(pipeline::Frame::Message(bs.buf().bytes().into()));
+                return Ok(Some(bs.as_slice().to_vec()));
             }
         }
 
-        None
+        Ok(None)
     }
-}
 
-pub struct Serializer<B> {
-    pub field_size: usize,
-    _byteorder: PhantomData<B>,
-}
-
-impl<B: ByteOrder> Serialize for Serializer<B> {
-    type In = Frame;
-
-    fn serialize(&mut self, frame: Frame, buf: &mut BlockBuf) {
-        match frame {
-            pipeline::Frame::Message(v) => {
-                buf.write_slice(v.as_slice());
-
-                let mut s = [0; 8];
-                B::write_uint(&mut s[..], v.len() as u64, self.field_size);
-                buf.write_slice(&s[0 .. self.field_size]);
-            }
-            pipeline::Frame::Done => (),
-            other => panic!("cannot serialize {:?}", other),
-        }
+    #[inline]
+    fn encode(&mut self, item: Vec<u8>, buf: &mut Vec<u8>) -> io::Result<()> {
+        let mut s = [0; 8];
+        B::write_uint(&mut s[..], item.len() as u64, self.field_size);
+        buf.extend_from_slice(&s[.. self.field_size]);
+        buf.extend_from_slice(&item);
+        Ok(())
     }
 }
 
@@ -117,24 +95,23 @@ fn test_length_field() {
     let mut b = [0; 2];
     BigEndian::write_u16(&mut b[..], 3);
 
-    let mut buf = BlockBuf::default();
-    buf.write_slice(&b[..]);
-    buf.write_slice(b"abc");
-    buf.write_slice(&b[..]);
-    buf.write_slice(b"def");
+    let mut buf = EasyBuf::new();
+    buf.get_mut().extend_from_slice(&b[..]);
+    buf.get_mut().extend_from_slice(b"abc");
+    buf.get_mut().extend_from_slice(&b[..]);
+    buf.get_mut().extend_from_slice(b"def");
 
     BigEndian::write_u16(&mut b[..], 0);
-    buf.write_slice(&b[..]);
+    buf.get_mut().extend_from_slice(&b[..]);
 
-    let mut p: Parser<BigEndian> = Parser {
+    let mut p: LengthFieldCodec<BigEndian> = LengthFieldProto {
         field_size: mem::size_of::<u16>(),
-        current_len: None,
         _byteorder: PhantomData,
-    };
+    }.into();
 
-    assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), &b"abc"[..]);
-    assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), &b"def"[..]);
-    assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), &[][..]);
-    assert!(p.parse(&mut buf).is_none());
+    assert_eq!(p.decode(&mut buf).unwrap(), Some(b"abc".to_vec()));
+    assert_eq!(p.decode(&mut buf).unwrap(), Some(b"def".to_vec()));
+    assert_eq!(p.decode(&mut buf).unwrap(), Some(vec![]));
+    assert!(p.decode(&mut buf).unwrap().is_none());
 }
 

@@ -1,168 +1,117 @@
-use bytes::buf::BlockBuf;
-use bytes::{Buf, MutBuf};
-use futures::{Async, Poll};
+use tokio_core::io::{Codec, Io, EasyBuf, Framed};
+use tokio_proto::pipeline::{ServerProto, ClientProto};
 use std::io;
-use tokio_core::io::{FramedIo, Io};
-use tokio_proto::{pipeline, Framed, Parse, Serialize};
-use super::Frame;
-use memchr;
 
-pub struct DelimiterTransport<T, D: Delimiter> {
-    inner: Framed<T, Parser<D>, Serializer<D>>,
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DelimiterProto<D>(D);
 
-impl<T, D> DelimiterTransport<T, D>
-    where T: Io,
-          D: Delimiter + Clone
-{
-    pub fn new(upstream: T, delimiter: D, rd: BlockBuf, wr: BlockBuf) -> Self {
-        DelimiterTransport {
-            inner: Framed::new(upstream,
-                               Parser { delimiter: delimiter.clone() },
-                               Serializer { delimiter: delimiter },
-                               rd,
-                               wr),
-        }
+impl<D: Delimiter> DelimiterProto<D> {
+    pub fn new(delimiter: D) -> Self {
+        DelimiterProto(delimiter)
     }
 }
 
-impl<T, D> FramedIo for DelimiterTransport<T, D>
-    where T: Io,
-          D: Delimiter
-{
-    type In = Frame;
-    type Out = Frame;
+impl<T: Io + 'static, D: Delimiter + 'static> ServerProto<T> for DelimiterProto<D> {
+    type Request = Vec<u8>;
+    type Response = Vec<u8>;
+    type Error = io::Error;
+    type Transport = Framed<T, DelimiterCodec<D>>;
+    type BindTransport = Result<Self::Transport, io::Error>;
 
-    #[inline]
-    fn poll_read(&mut self) -> Async<()> {
-        self.inner.poll_read()
-    }
-
-    #[inline]
-    fn read(&mut self) -> Poll<Self::Out, io::Error> {
-        self.inner.read()
-    }
-
-    #[inline]
-    fn poll_write(&mut self) -> Async<()> {
-        self.inner.poll_write()
-    }
-
-    #[inline]
-    fn write(&mut self, req: Self::In) -> Poll<(), io::Error> {
-        self.inner.write(req)
-    }
-
-    #[inline]
-    fn flush(&mut self) -> Poll<(), io::Error> {
-        self.inner.flush()
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        Ok(io.framed(DelimiterCodec(self.0.clone())))
     }
 }
 
-pub struct Parser<D> {
-    pub delimiter: D,
-}
+impl<T: Io + 'static, D: Delimiter + 'static> ClientProto<T> for DelimiterProto<D> {
+    type Request = Vec<u8>;
+    type Response = Vec<u8>;
+    type Error = io::Error;
+    type Transport = Framed<T, DelimiterCodec<D>>;
+    type BindTransport = Result<Self::Transport, io::Error>;
 
-impl<D: Delimiter> Parse for Parser<D> {
-    type Out = Frame;
-
-    #[inline]
-    fn parse(&mut self, buf: &mut BlockBuf) -> Option<Frame> {
-        match self.delimiter.pop_buf(buf) {
-            Ok(Some(frame)) => Some(pipeline::Frame::Message(frame)),
-            Ok(None) => None,
-            Err(e) => Some(pipeline::Frame::Error(e)),
-        }
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        Ok(io.framed(DelimiterCodec(self.0.clone())))
     }
 }
 
-pub struct Serializer<D> {
-    pub delimiter: D,
-}
+pub struct DelimiterCodec<D>(D);
 
-impl<D: Delimiter> Serialize for Serializer<D> {
-    type In = Frame;
+impl<D: Delimiter> Codec for DelimiterCodec<D> {
+    type In = Vec<u8>;
+    type Out = Vec<u8>;
 
     #[inline]
-    fn serialize(&mut self, frame: Frame, buf: &mut BlockBuf) {
-        match frame {
-            pipeline::Frame::Message(v) => {
-                buf.write_slice(v.as_slice());
-                self.delimiter.write_deliimiter(buf);
-            }
-            other => panic!("cannot serialize {:?}", other),
-        }
+    fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        self.0.pop_buf(buf)
+    }
+
+    #[inline]
+    fn encode(&mut self, item: Vec<u8>, buf: &mut Vec<u8>) -> io::Result<()> {
+        buf.extend_from_slice(item.as_slice());
+        self.0.write_delimiter(buf);
+        Ok(())
     }
 }
 
-pub trait Delimiter {
-    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error>;
-    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B);
+pub trait Delimiter: Clone {
+    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>>;
+    fn write_delimiter(&self, buf: &mut Vec<u8>);
 }
 
 impl Delimiter for u8 {
-    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
-        buf.compact();
-        debug_assert!(buf.is_compact());
+    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        let pos = ::memchr::memchr(*self, buf.as_slice());
 
-        let pos = buf.bytes()
-            .and_then(|bs| memchr::memchr(*self, bs));
+        Ok(pos.map(move |pos| {
+            let mut fir = buf.drain_to(pos + 1);
 
-        Ok(pos.and_then(move |pos| {
-            let bs = buf.shift(pos + 1);
-            bs.buf()
-                .bytes()
-                .split_last()
-                .map(|(_, frame)| frame.into())
+            let len = fir.len();
+            debug_assert!(len > 0);
+            fir.get_mut().truncate(len - 1);
+
+            fir.as_slice().to_vec()
         }))
     }
 
-    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
-        buf.write_slice(&[*self]);
+    fn write_delimiter(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&[*self]);
     }
 }
 
 #[test]
 fn test_delimiter_u8() {
-    let mut buf = BlockBuf::default();
-    buf.write_slice(&[1, 0, 2, 0, 0]);
+    let mut buf = EasyBuf::new();
+    buf.get_mut().extend_from_slice(&[1, 1, 0, 2, 0, 0]);
 
     let delimiter = 0;
 
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![1u8]));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![2u8]));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![1, 1]));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![2]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
-    delimiter.write_deliimiter(&mut buf);
-    buf.compact();
-    assert_eq!(buf.bytes().unwrap(), &[0u8]);
+    let mut v = vec![];
+    delimiter.write_delimiter(&mut v);
+    assert_eq!(v.as_slice(), &[0u8]);
 }
 
 impl Delimiter for char {
-    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
-        buf.compact();
-        debug_assert!(buf.is_compact());
-
-        let pos = match buf.bytes().map(|bs| ::std::str::from_utf8(bs)) {
-            None => return Ok(None),
-            Some(Err(err)) => {
-                return Err(io::Error::new(io::ErrorKind::Other, format!("{}", err)));
-            }
-            Some(Ok(s)) => s.char_indices().find(|&(_, c)| c == *self).map(|(i, _)| i),
-        };
+    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        let pos = ::std::str::from_utf8(buf.as_ref())
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?
+            .char_indices()
+            .find(|&(_, c)| c == *self)
+            .map(|(i, _)| i);
 
         Ok(pos.map(move |pos| {
-            let bs = buf.shift(pos + self.len_utf8());
-            bs.buf()
-                .bytes()
-                .split_at(pos)
-                .0
-                .to_vec()
+            let bs = buf.drain_to(pos);
+            let _ = buf.drain_to(self.len_utf8());
+            bs.as_slice().to_vec()
         }))
     }
 
-    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
+    fn write_delimiter(&self, buf: &mut Vec<u8>) {
         // TODO: use `char::encode_utf8` once it is stabilized
 
         // from rust/src/libcore:
@@ -178,27 +127,27 @@ impl Delimiter for char {
 
         let code = *self as u32;
         if code < MAX_ONE_B {
-            buf.write_slice(&[code as u8]);
+            buf.extend_from_slice(&[code as u8]);
         } else if code < MAX_TWO_B {
-            buf.write_slice(&[(code >> 6 & 0x1F) as u8 | TAG_TWO_B,
-                              (code & 0x3F) as u8 | TAG_CONT]);
+            buf.extend_from_slice(&[(code >> 6 & 0x1F) as u8 | TAG_TWO_B,
+                (code & 0x3F) as u8 | TAG_CONT]);
         } else if code < MAX_THREE_B {
-            buf.write_slice(&[(code >> 12 & 0x0F) as u8 | TAG_THREE_B,
-                              (code >> 6 & 0x3F) as u8 | TAG_CONT,
-                              (code & 0x3F) as u8 | TAG_CONT]);
+            buf.extend_from_slice(&[(code >> 12 & 0x0F) as u8 | TAG_THREE_B,
+                (code >> 6 & 0x3F) as u8 | TAG_CONT,
+                (code & 0x3F) as u8 | TAG_CONT]);
         } else {
-            buf.write_slice(&[(code >> 18 & 0x07) as u8 | TAG_FOUR_B,
-                              (code >> 12 & 0x3F) as u8 | TAG_CONT,
-                              (code >> 6 & 0x3F) as u8 | TAG_CONT,
-                              (code & 0x3F) as u8 | TAG_CONT]);
+            buf.extend_from_slice(&[(code >> 18 & 0x07) as u8 | TAG_FOUR_B,
+                (code >> 12 & 0x3F) as u8 | TAG_CONT,
+                (code >> 6 & 0x3F) as u8 | TAG_CONT,
+                (code & 0x3F) as u8 | TAG_CONT]);
         }
     }
 }
 
 #[test]
 fn test_delimiter_char() {
-    let mut buf = BlockBuf::default();
-    buf.write_slice("あめ、つち、、".as_bytes());
+    let mut buf = EasyBuf::new();
+    buf.get_mut().extend_from_slice("あめ、つち、、".as_bytes());
 
     let delimiter = '、';
 
@@ -210,53 +159,94 @@ fn test_delimiter_char() {
                Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
-    delimiter.write_deliimiter(&mut buf);
-    buf.compact();
-    assert_eq!(buf.bytes().unwrap(), "、".as_bytes());
+    let mut v = vec![];
+    delimiter.write_delimiter(&mut v);
+    assert_eq!(v, "、".as_bytes());
 }
 
-#[derive(Debug)]
-pub struct LineDelimiter;
-// TODO: config
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineSeparator {
+    Cr,
+    Lf,
+    CrLf,
+}
 
-// NOTE: parses '\r', '\n', '\r\n', writes '\n'
+impl LineSeparator {
+    fn as_slice(&self) -> &'static [u8] {
+        static CR: &'static [u8] = &[b'\r'];
+        static LF: &'static [u8] = &[b'\n'];
+        static CR_LF: &'static [u8] = &[b'\r', b'\n'];
+
+        match *self {
+            LineSeparator::Cr => CR,
+            LineSeparator::Lf => LF,
+            LineSeparator::CrLf => CR_LF,
+        }
+    }
+}
+
+impl Delimiter for LineSeparator {
+    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        self.as_slice().pop_buf(buf)
+    }
+
+    fn write_delimiter(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(self.as_slice());
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct LineDelimiter {
+    write_sep: LineSeparator,
+}
+
+impl LineDelimiter {
+    pub fn new(write_sep: LineSeparator) -> LineDelimiter {
+        LineDelimiter {
+            write_sep: write_sep,
+        }
+    }
+}
+
 impl Delimiter for LineDelimiter {
-    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
-        buf.compact();
-        debug_assert!(buf.is_compact());
-
-        let ret = match buf.bytes() {
-                None => return Ok(None),
-                Some(bs) => bs.into_iter().position(|&c| c == b'\r' || c == b'\n'),
-            }
+    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        let ret = buf.as_ref().iter().position(|&c| c == b'\r' || c == b'\n')
             .and_then(move |pos| {
-                let shift = buf.shift(pos + 1);
-                let bs = shift.buf();
-                let bs = bs.bytes();
+                let bs = buf.drain_to(pos);
 
-                // shift another 1-byte if line breaker is "\r\n"
-                if !buf.is_empty() && bs.last() == Some(&b'\r') && buf.buf().peek_u8() == Some(b'\n') {
-                    buf.shift(1);
+                if buf.as_ref()[0] == b'\r' {
+                    match buf.as_ref().get(1) {
+                        Some(&b'\n') =>  {
+                            buf.drain_to(2);
+                        }
+
+                        Some(_) => {
+                            buf.drain_to(1);
+                        }
+
+                        None => return None,
+                    }
+                } else {
+                    buf.drain_to(1);
                 }
 
-                bs.split_last()
-                    .map(|(_, frame)| frame.into())
+                Some(bs.as_ref().to_vec())
             });
 
         Ok(ret)
     }
 
-    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
-        buf.write_slice(b"\n");
+    fn write_delimiter(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(b"\n");
     }
 }
 
 #[test]
 fn test_delimiter_line() {
-    let mut buf = BlockBuf::default();
-    buf.write_slice("あめ\nつち\r\n\n".as_bytes());
+    let mut buf = EasyBuf::new();
+    buf.get_mut().extend_from_slice("あめ\nつち\r\n\n".as_bytes());
 
-    let delimiter = LineDelimiter;
+    let delimiter = LineDelimiter::new(LineSeparator::Lf);
 
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("あめ".as_bytes().to_vec()));
@@ -266,57 +256,47 @@ fn test_delimiter_line() {
                Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
-    delimiter.write_deliimiter(&mut buf);
-    buf.compact();
-    assert_eq!(buf.bytes().unwrap(), b"\n");
+    let mut v = vec![];
+    delimiter.write_delimiter(&mut v);
+    assert_eq!(v, b"\n");
 }
 
 impl<'a> Delimiter for &'a [u8] {
-    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
+    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
         if buf.len() < self.len() {
             return Ok(None);
         }
 
-        buf.compact();
-        debug_assert!(buf.is_compact());
+        for i in 0 .. buf.len() - self.len() + 1 {
+            if buf.as_slice()[i..].starts_with(self) {
+                let b = buf.drain_to(i);
+                buf.drain_to(self.len());
+                return Ok(Some(b.as_ref().to_vec()));
+            }
+        }
 
-        let start = buf.bytes()
-            .and_then(|b| {
-                debug_assert!(buf.len() >= self.len());
-                for i in 0 .. b.len() - self.len() + 1 {
-                    if b[i..].starts_with(self) {
-                        return Some(i);
-                    }
-                }
-
-                None
-            });
-
-        Ok(start.map(move |start| {
-            let b = buf.shift(start + self.len());
-            (&b.buf().bytes()[..start]).into()
-        }))
+        Ok(None)
     }
 
-    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
-        buf.write_slice(self);
+    fn write_delimiter(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(self);
     }
 }
 
 impl Delimiter for Vec<u8> {
-    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
+    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
         self.as_slice().pop_buf(buf)
     }
 
-    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
-        buf.write_slice(self.as_slice());
+    fn write_delimiter(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(self.as_slice());
     }
 }
 
 #[test]
 fn test_delimiter_vec() {
-    let mut buf = BlockBuf::default();
-    buf.write_slice("あめ#\0#つち#\0##\0#".as_bytes());
+    let mut buf = EasyBuf::new();
+    buf.get_mut().extend_from_slice("あめ#\0#つち#\0##\0#".as_bytes());
 
     let delimiter = &b"#\0#"[..].to_vec();
 
@@ -328,36 +308,35 @@ fn test_delimiter_vec() {
                Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
-    delimiter.write_deliimiter(&mut buf);
-    buf.compact();
-    assert_eq!(buf.bytes().unwrap(), b"#\0#");
+    let mut v = vec![];
+    delimiter.write_delimiter(&mut v);
+    assert_eq!(v.as_slice(), b"#\0#");
 }
 
-
 impl<'a> Delimiter for &'a str {
-    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
+    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
         self.as_bytes().pop_buf(buf)
     }
 
-    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
-        buf.write_slice(self.as_bytes());
+    fn write_delimiter(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(self.as_bytes());
     }
 }
 
 impl Delimiter for String {
-    fn pop_buf(&self, buf: &mut BlockBuf) -> Result<Option<Vec<u8>>, io::Error> {
+    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
         self.as_bytes().pop_buf(buf)
     }
 
-    fn write_deliimiter<B: MutBuf>(&self, buf: &mut B) {
-        buf.write_slice(self.as_bytes());
+    fn write_delimiter(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(self.as_bytes());
     }
 }
 
 #[test]
 fn test_delimiter_string() {
-    let mut buf = BlockBuf::default();
-    buf.write_slice("あめ・\nつち・\n・\n".as_bytes());
+    let mut buf = EasyBuf::new();
+    buf.get_mut().extend("あめ・\nつち・\n・\n".as_bytes());
 
     let delimiter = "・\n";
 
@@ -369,7 +348,7 @@ fn test_delimiter_string() {
                Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
-    delimiter.write_deliimiter(&mut buf);
-    buf.compact();
-    assert_eq!(buf.bytes().unwrap(), "・\n".as_bytes());
+    let mut v = vec![];
+    delimiter.write_delimiter(&mut v);
+    assert_eq!(v, "・\n".as_bytes());
 }

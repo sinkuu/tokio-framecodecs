@@ -11,3 +11,4 @@ tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
 futures = "0.1.6"
 log = "0.3"
 memchr = "0.1.11"
+byteorder = "0.5.3"

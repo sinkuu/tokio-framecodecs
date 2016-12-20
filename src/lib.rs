@@ -1,21 +1,16 @@
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_proto;
-extern crate bytes;
 extern crate byteorder;
 extern crate memchr;
 #[macro_use]
 extern crate log;
 
-pub type Frame = tokio_proto::pipeline::Frame<Vec<u8>, (), std::io::Error>;
-
 pub mod fixed_length;
-pub use fixed_length::FixedLengthTransport;
+pub use fixed_length::FixedLengthProto;
 
 pub mod delimiter;
-pub use delimiter::DelimiterTransport;
+pub use delimiter::DelimiterProto;
 
 pub mod length_field;
-pub use length_field::LengthFieldTransport;
-
-pub mod framed_helper;
+pub use length_field::LengthFieldProto;

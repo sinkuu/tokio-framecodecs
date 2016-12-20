@@ -1,104 +1,71 @@
-use tokio_core::io::{Io, FramedIo};
-use tokio_proto::{Parse, Serialize, Framed};
-use tokio_proto::pipeline;
-use bytes::{Buf, MutBuf};
-use bytes::buf::BlockBuf;
-use futures::{Async, Poll};
+use tokio_core::io::{Codec, Io, EasyBuf, Framed};
+use tokio_proto::pipeline::ServerProto;
 use std::io;
-use super::Frame;
 
-pub struct FixedLengthTransport<T> {
-    inner: Framed<T, Parser, Serializer>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FixedLengthProto {
+    pub length: usize,
 }
 
-impl<T> FixedLengthTransport<T> where T: Io {
-    pub fn new(transport: T, length: usize) -> FixedLengthTransport<T> {
-        FixedLengthTransport {
-            inner: Framed::new(transport,
-                        Parser { length: length },
-                        Serializer { length: length },
-                        BlockBuf::default(),
-                        BlockBuf::default()),
+impl FixedLengthProto {
+    pub fn new(length: usize) -> FixedLengthProto {
+        FixedLengthProto {
+            length: length,
         }
     }
 }
 
-impl<T> FramedIo for FixedLengthTransport<T>
-    where T: Io
-{
-    type In = Frame;
-    type Out = Frame;
+impl<T: Io + 'static> ServerProto<T> for FixedLengthProto {
+    type Request = Vec<u8>;
+    type Response = Vec<u8>;
+    type Error = io::Error;
+    type Transport = Framed<T, FixedLengthCodec>;
+    type BindTransport = io::Result<Self::Transport>;
 
-    fn poll_read(&mut self) -> Async<()> {
-        self.inner.poll_read()
-    }
-
-    fn read(&mut self) -> Poll<Self::Out, io::Error> {
-        self.inner.read()
-    }
-
-    fn poll_write(&mut self) -> Async<()> {
-        self.inner.poll_write()
-    }
-
-    fn write(&mut self, req: Self::In) -> Poll<(), io::Error> {
-        self.inner.write(req)
-    }
-
-    fn flush(&mut self) -> Poll<(), io::Error> {
-        self.inner.flush()
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        Ok(io.framed(FixedLengthCodec { length: self.length }))
     }
 }
 
-pub struct Parser {
-    pub length: usize,
+pub struct FixedLengthCodec {
+    length: usize,
 }
 
-impl Parse for Parser {
-    type Out = Frame;
+impl Codec for FixedLengthCodec {
+    type In = Vec<u8>;
+    type Out = Vec<u8>;
 
-    fn parse(&mut self, buf: &mut BlockBuf) -> Option<Frame> {
-        if buf.len() >= self.length {
-            let bs = buf.shift(self.length);
-            Some(pipeline::Frame::Message(bs.buf().bytes().into()))
+    #[inline]
+    fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        Ok(if buf.len() >= self.length {
+            let bs = buf.drain_to(self.length);
+            Some(bs.as_slice().to_vec())
         } else {
             None
-        }
+        })
     }
-}
 
-pub struct Serializer {
-    pub length: usize,
-}
-
-impl Serialize for Serializer {
-    type In = Frame;
-
-    fn serialize(&mut self, frame: Frame, buf: &mut BlockBuf) {
-        match frame {
-            pipeline::Frame::Message(v) => {
-                assert!(v.len() == self.length);
-                buf.write_slice(v.as_slice());
-            }
-            pipeline::Frame::Done => (),
-            other => panic!("cannot serialize {:?}", other),
-        }
+    #[inline]
+    fn encode(&mut self, item: Vec<u8>, buf: &mut Vec<u8>) -> io::Result<()> {
+        assert_eq!(item.len(), self.length);
+        buf.extend_from_slice(&item);
+        Ok(())
     }
 }
 
 #[test]
 fn test_fixed_length() {
-    let mut p = Parser { length: 5 };
+    let mut p = FixedLengthCodec { length: 5 };
 
-    let mut buf = BlockBuf::default();
-    buf.write_slice(b"abcdefghijkl");
+    let mut buf = EasyBuf::new();
+    buf.get_mut().extend_from_slice(b"abcdefghijkl");
 
-    assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), b"abcde".to_vec());
-    assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), b"fghij".to_vec());
-    assert!(p.parse(&mut buf).is_none());
+    assert_eq!(p.decode(&mut buf).unwrap(), Some(b"abcde".to_vec()));
+    assert_eq!(p.decode(&mut buf).unwrap(), Some(b"fghij".to_vec()));
+    assert!(p.decode(&mut buf).unwrap().is_none());
 
-    buf.write_slice(b"mno");
+    buf.get_mut().extend_from_slice(b"mno");
 
-    assert_eq!(p.parse(&mut buf).unwrap().unwrap_msg(), b"klmno".to_vec());
+    assert_eq!(p.decode(&mut buf).unwrap(), Some(b"klmno".to_vec()));
 }
 
