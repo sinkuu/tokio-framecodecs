@@ -1,5 +1,5 @@
 use tokio_core::io::{Codec, Io, EasyBuf, Framed};
-use tokio_proto::pipeline::ServerProto;
+use tokio_proto::pipeline::{ServerProto, ClientProto};
 use std::io;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,6 +13,12 @@ impl FixedLengthProto {
             length: length,
         }
     }
+
+    fn codec(&self) -> FixedLengthCodec {
+        FixedLengthCodec {
+            length: self.length,
+        }
+    }
 }
 
 impl<T: Io + 'static> ServerProto<T> for FixedLengthProto {
@@ -23,7 +29,19 @@ impl<T: Io + 'static> ServerProto<T> for FixedLengthProto {
     type BindTransport = io::Result<Self::Transport>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        Ok(io.framed(FixedLengthCodec { length: self.length }))
+        Ok(io.framed(self.codec()))
+    }
+}
+
+impl<T: Io + 'static> ClientProto<T> for FixedLengthProto {
+    type Request = Vec<u8>;
+    type Response = Vec<u8>;
+    type Error = io::Error;
+    type Transport = Framed<T, FixedLengthCodec>;
+    type BindTransport = io::Result<Self::Transport>;
+
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        Ok(io.framed(self.codec()))
     }
 }
 

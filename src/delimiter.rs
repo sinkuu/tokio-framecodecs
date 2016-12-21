@@ -28,7 +28,7 @@ impl<T: Io + 'static, D: Delimiter + 'static> ClientProto<T> for DelimiterProto<
     type Response = Vec<u8>;
     type Error = io::Error;
     type Transport = Framed<T, DelimiterCodec<D>>;
-    type BindTransport = Result<Self::Transport, io::Error>;
+    type BindTransport = io::Result<Self::Transport>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
         Ok(io.framed(DelimiterCodec(self.0.clone())))

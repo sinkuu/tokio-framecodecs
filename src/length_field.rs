@@ -1,5 +1,5 @@
 use tokio_core::io::{Codec, Io, EasyBuf, Framed};
-use tokio_proto::pipeline::ServerProto;
+use tokio_proto::pipeline::{ServerProto, ClientProto};
 use byteorder::ByteOrder;
 use std::marker::PhantomData;
 use std::io;
@@ -19,6 +19,14 @@ impl<B> LengthFieldProto<B> {
             _byteorder: PhantomData,
         }
     }
+
+    fn codec(&self) -> LengthFieldCodec<B> {
+        LengthFieldCodec {
+            field_size: self.field_size,
+            current_len: None,
+            _byteorder: PhantomData,
+        }
+    }
 }
 
 impl<B: ByteOrder + 'static, T: Io + 'static> ServerProto<T> for LengthFieldProto<B> {
@@ -29,7 +37,19 @@ impl<B: ByteOrder + 'static, T: Io + 'static> ServerProto<T> for LengthFieldProt
     type BindTransport = io::Result<Self::Transport>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        Ok(io.framed(LengthFieldCodec::new(self.field_size)))
+        Ok(io.framed(self.codec()))
+    }
+}
+
+impl<B: ByteOrder + 'static, T: Io + 'static> ClientProto<T> for LengthFieldProto<B> {
+    type Request = Vec<u8>;
+    type Response = Vec<u8>;
+    type Error = io::Error;
+    type Transport = Framed<T, LengthFieldCodec<B>>;
+    type BindTransport = io::Result<Self::Transport>;
+
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        Ok(io.framed(self.codec()))
     }
 }
 
@@ -48,12 +68,6 @@ impl<B> LengthFieldCodec<B> {
             current_len: None,
             _byteorder: PhantomData,
         }
-    }
-}
-
-impl<B> From<LengthFieldProto<B>> for LengthFieldCodec<B> {
-    fn from(proto: LengthFieldProto<B>) -> LengthFieldCodec<B> {
-        LengthFieldCodec::new(proto.field_size)
     }
 }
 
