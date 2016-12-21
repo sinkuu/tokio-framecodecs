@@ -27,8 +27,17 @@ impl<T: Io + 'static> ServerProto<T> for FixedLengthProto {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FixedLengthCodec {
-    length: usize,
+    pub length: usize,
+}
+
+impl FixedLengthCodec {
+    pub fn new(length: usize) -> FixedLengthCodec {
+        FixedLengthCodec {
+            length: length,
+        }
+    }
 }
 
 impl Codec for FixedLengthCodec {

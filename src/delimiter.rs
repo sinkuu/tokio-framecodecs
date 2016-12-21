@@ -37,6 +37,12 @@ impl<T: Io + 'static, D: Delimiter + 'static> ClientProto<T> for DelimiterProto<
 
 pub struct DelimiterCodec<D>(D);
 
+impl<D> DelimiterCodec<D> {
+    pub fn new(delimiter: D) -> DelimiterCodec<D> {
+        DelimiterCodec(delimiter)
+    }
+}
+
 impl<D: Delimiter> Codec for DelimiterCodec<D> {
     type In = Vec<u8>;
     type Out = Vec<u8>;

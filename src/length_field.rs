@@ -12,6 +12,8 @@ pub struct LengthFieldProto<B> {
 
 impl<B> LengthFieldProto<B> {
     pub fn new(field_size: usize) -> Self {
+        assert!(field_size <= ::std::mem::size_of::<usize>());
+
         LengthFieldProto {
             field_size: field_size,
             _byteorder: PhantomData,
@@ -38,7 +40,7 @@ pub struct LengthFieldCodec<B> {
 }
 
 impl<B> LengthFieldCodec<B> {
-    fn new(field_size: usize) -> LengthFieldCodec<B> {
+    pub fn new(field_size: usize) -> LengthFieldCodec<B> {
         assert!(field_size <= ::std::mem::size_of::<usize>());
 
         LengthFieldCodec {
@@ -104,10 +106,7 @@ fn test_length_field() {
     BigEndian::write_u16(&mut b[..], 0);
     buf.get_mut().extend_from_slice(&b[..]);
 
-    let mut p: LengthFieldCodec<BigEndian> = LengthFieldProto {
-        field_size: mem::size_of::<u16>(),
-        _byteorder: PhantomData,
-    }.into();
+    let mut p: LengthFieldCodec<BigEndian> = LengthFieldCodec::new(mem::size_of::<u16>());
 
     assert_eq!(p.decode(&mut buf).unwrap(), Some(b"abc".to_vec()));
     assert_eq!(p.decode(&mut buf).unwrap(), Some(b"def".to_vec()));
