@@ -4,15 +4,12 @@ extern crate tokio_proto;
 extern crate tokio_service;
 extern crate futures;
 
-use framecodecs::delimiter::{DelimiterProto, LineDelimiter, LineSeparator};
+use framecodecs::delimiter::{DelimiterProto, LineDelimiter};
 
-use futures::{Future, Stream};
 use futures::future::FutureResult;
 
 use tokio_core::reactor::Core;
-use tokio_core::net::TcpStream;
 use tokio_proto::{TcpClient, TcpServer};
-use tokio_proto::pipeline::ClientProto;
 use tokio_service::Service;
 
 use std::io;
