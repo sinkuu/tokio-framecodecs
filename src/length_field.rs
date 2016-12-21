@@ -97,7 +97,7 @@ impl<B: ByteOrder> Codec for LengthFieldCodec<B> {
     fn encode(&mut self, item: Vec<u8>, buf: &mut Vec<u8>) -> io::Result<()> {
         let mut s = [0; 8];
         B::write_uint(&mut s[..], item.len() as u64, self.field_size);
-        buf.extend_from_slice(&s[.. self.field_size]);
+        buf.extend_from_slice(&s[..self.field_size]);
         buf.extend_from_slice(&item);
         Ok(())
     }
@@ -127,4 +127,3 @@ fn test_length_field() {
     assert_eq!(p.decode(&mut buf).unwrap(), Some(vec![]));
     assert!(p.decode(&mut buf).unwrap().is_none());
 }
-

@@ -9,15 +9,11 @@ pub struct FixedLengthProto {
 
 impl FixedLengthProto {
     pub fn new(length: usize) -> FixedLengthProto {
-        FixedLengthProto {
-            length: length,
-        }
+        FixedLengthProto { length: length }
     }
 
     fn codec(&self) -> FixedLengthCodec {
-        FixedLengthCodec {
-            length: self.length,
-        }
+        FixedLengthCodec { length: self.length }
     }
 }
 
@@ -52,9 +48,7 @@ pub struct FixedLengthCodec {
 
 impl FixedLengthCodec {
     pub fn new(length: usize) -> FixedLengthCodec {
-        FixedLengthCodec {
-            length: length,
-        }
+        FixedLengthCodec { length: length }
     }
 }
 
@@ -95,4 +89,3 @@ fn test_fixed_length() {
 
     assert_eq!(p.decode(&mut buf).unwrap(), Some(b"klmno".to_vec()));
 }
-

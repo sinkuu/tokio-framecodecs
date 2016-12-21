@@ -136,16 +136,16 @@ impl Delimiter for char {
             buf.extend_from_slice(&[code as u8]);
         } else if code < MAX_TWO_B {
             buf.extend_from_slice(&[(code >> 6 & 0x1F) as u8 | TAG_TWO_B,
-                (code & 0x3F) as u8 | TAG_CONT]);
+                                    (code & 0x3F) as u8 | TAG_CONT]);
         } else if code < MAX_THREE_B {
             buf.extend_from_slice(&[(code >> 12 & 0x0F) as u8 | TAG_THREE_B,
-                (code >> 6 & 0x3F) as u8 | TAG_CONT,
-                (code & 0x3F) as u8 | TAG_CONT]);
+                                    (code >> 6 & 0x3F) as u8 | TAG_CONT,
+                                    (code & 0x3F) as u8 | TAG_CONT]);
         } else {
             buf.extend_from_slice(&[(code >> 18 & 0x07) as u8 | TAG_FOUR_B,
-                (code >> 12 & 0x3F) as u8 | TAG_CONT,
-                (code >> 6 & 0x3F) as u8 | TAG_CONT,
-                (code & 0x3F) as u8 | TAG_CONT]);
+                                    (code >> 12 & 0x3F) as u8 | TAG_CONT,
+                                    (code >> 6 & 0x3F) as u8 | TAG_CONT,
+                                    (code & 0x3F) as u8 | TAG_CONT]);
         }
     }
 }
@@ -161,8 +161,7 @@ fn test_delimiter_char() {
                Some("あめ".as_bytes().to_vec()));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
-               Some(vec![]));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
     let mut v = vec![];
@@ -212,8 +211,7 @@ fn test_delimiter_line() {
                Some("あめ".as_bytes().to_vec()));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
-               Some(vec![]));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
     let mut v = vec![];
@@ -227,7 +225,7 @@ impl<'a> Delimiter for &'a [u8] {
             return Ok(None);
         }
 
-        for i in 0 .. buf.len() - self.len() + 1 {
+        for i in 0..buf.len() - self.len() + 1 {
             if buf.as_slice()[i..].starts_with(self) {
                 let b = buf.drain_to(i);
                 buf.drain_to(self.len());
@@ -264,8 +262,7 @@ fn test_delimiter_vec() {
                Some("あめ".as_bytes().to_vec()));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
-               Some(vec![]));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
     let mut v = vec![];
@@ -304,8 +301,7 @@ fn test_delimiter_string() {
                Some("あめ".as_bytes().to_vec()));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
-               Some(vec![]));
+    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
 
     let mut v = vec![];

@@ -18,6 +18,9 @@ fn main() {
     let ts = core.run(ts.send(vec![65, 66, 67, 68, 69])).unwrap();
     let ts = core.run(ts.send(vec![70, 71, 72, 73, 74])).unwrap();
 
-    core.run(ts.for_each(|v| { println!("{:?}", v); Ok(()) })).unwrap();
+    core.run(ts.for_each(|v| {
+            println!("{:?}", v);
+            Ok(())
+        }))
+        .unwrap();
 }
-
