@@ -171,27 +171,27 @@ fn test_delimiter_char() {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LineSeparator {
+pub enum LineDelimiter {
     Cr,
     Lf,
     CrLf,
 }
 
-impl LineSeparator {
+impl LineDelimiter {
     fn as_slice(&self) -> &'static [u8] {
         static CR: &'static [u8] = &[b'\r'];
         static LF: &'static [u8] = &[b'\n'];
         static CR_LF: &'static [u8] = &[b'\r', b'\n'];
 
         match *self {
-            LineSeparator::Cr => CR,
-            LineSeparator::Lf => LF,
-            LineSeparator::CrLf => CR_LF,
+            LineDelimiter::Cr => CR,
+            LineDelimiter::Lf => LF,
+            LineDelimiter::CrLf => CR_LF,
         }
     }
 }
 
-impl Delimiter for LineSeparator {
+impl Delimiter for LineDelimiter {
     fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
         self.as_slice().pop_buf(buf)
     }
@@ -201,58 +201,12 @@ impl Delimiter for LineSeparator {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct LineDelimiter {
-    write_sep: LineSeparator,
-}
-
-impl LineDelimiter {
-    pub fn new(write_sep: LineSeparator) -> LineDelimiter {
-        LineDelimiter {
-            write_sep: write_sep,
-        }
-    }
-}
-
-impl Delimiter for LineDelimiter {
-    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
-        let ret = buf.as_ref().iter().position(|&c| c == b'\r' || c == b'\n')
-            .and_then(move |pos| {
-                let bs = buf.drain_to(pos);
-
-                if buf.as_ref()[0] == b'\r' {
-                    match buf.as_ref().get(1) {
-                        Some(&b'\n') =>  {
-                            buf.drain_to(2);
-                        }
-
-                        Some(_) => {
-                            buf.drain_to(1);
-                        }
-
-                        None => return None,
-                    }
-                } else {
-                    buf.drain_to(1);
-                }
-
-                Some(bs.as_ref().to_vec())
-            });
-
-        Ok(ret)
-    }
-
-    fn write_delimiter(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(b"\n");
-    }
-}
-
 #[test]
 fn test_delimiter_line() {
     let mut buf = EasyBuf::new();
-    buf.get_mut().extend_from_slice("あめ\nつち\r\n\n".as_bytes());
+    buf.get_mut().extend_from_slice("あめ\r\nつち\r\n\r\n".as_bytes());
 
-    let delimiter = LineDelimiter::new(LineSeparator::Lf);
+    let delimiter = LineDelimiter::CrLf;
 
     assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
                Some("あめ".as_bytes().to_vec()));
@@ -264,7 +218,7 @@ fn test_delimiter_line() {
 
     let mut v = vec![];
     delimiter.write_delimiter(&mut v);
-    assert_eq!(v, b"\n");
+    assert_eq!(v, b"\r\n");
 }
 
 impl<'a> Delimiter for &'a [u8] {

@@ -4,11 +4,17 @@ extern crate tokio_proto;
 extern crate tokio_service;
 extern crate futures;
 
-use framecodecs::DelimiterProto;
-use futures::Future;
+use framecodecs::delimiter::{DelimiterProto, LineDelimiter, LineSeparator};
+
+use futures::{Future, Stream};
+use futures::future::FutureResult;
+
 use tokio_core::reactor::Core;
+use tokio_core::net::TcpStream;
 use tokio_proto::{TcpClient, TcpServer};
+use tokio_proto::pipeline::ClientProto;
 use tokio_service::Service;
+
 use std::io;
 use std::thread;
 use std::time::Duration;
@@ -19,7 +25,7 @@ fn main() {
 
     let addr = "127.0.0.1:32104".parse().unwrap();
 
-    let proto = DelimiterProto::new('\n');
+    let proto = DelimiterProto::new(LineDelimiter::Lf);
 
     thread::spawn(move || {
         TcpServer::new(proto, addr).serve(|| Ok(EchoService));
@@ -41,9 +47,9 @@ impl Service for EchoService {
     type Request = Vec<u8>;
     type Response = Vec<u8>;
     type Error = io::Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = FutureResult<Self::Response, Self::Error>;
 
     fn call(&self, req: Vec<u8>) -> Self::Future {
-        Box::new(futures::finished(req))
+        futures::finished(req)
     }
 }
