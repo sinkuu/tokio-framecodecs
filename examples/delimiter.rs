@@ -30,7 +30,7 @@ fn main() {
 
     thread::sleep(Duration::from_millis(100));
 
-    let client = core.run(TcpClient::new(proto).connect(&addr, &handle)).unwrap();
+    let mut client = core.run(TcpClient::new(proto).connect(&addr, &handle)).unwrap();
 
     let msg = b"Doe, a deer, a female deer";
     assert_eq!(core.run(client.call(msg.to_vec())).unwrap(), msg);
@@ -46,7 +46,7 @@ impl Service for EchoService {
     type Error = io::Error;
     type Future = FutureResult<Self::Response, Self::Error>;
 
-    fn call(&self, req: Vec<u8>) -> Self::Future {
+    fn call(&mut self, req: Vec<u8>) -> Self::Future {
         futures::finished(req)
     }
 }
