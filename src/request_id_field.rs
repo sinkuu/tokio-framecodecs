@@ -10,12 +10,12 @@ const SIZE_OF_REQID: usize = 8;
 /// A protocol that converts a pipelining codec into a multiplexing codec by prepending a `u64` request id field
 /// to every frame of the base protocol.
 #[derive(Debug, Default, Clone)]
-pub struct RequestIdFieldProto<C, B = byteorder::BigEndian> {
+pub struct RequestIdFieldProto<B, C> {
     base: C,
     _byteorder: PhantomData<B>,
 }
 
-impl<C, B> RequestIdFieldProto<C, B> {
+impl<B, C> RequestIdFieldProto<B, C> {
     pub fn new(base: C) -> Self {
         RequestIdFieldProto {
             base: base,
@@ -24,7 +24,7 @@ impl<C, B> RequestIdFieldProto<C, B> {
     }
 }
 
-impl<C, B, T> multiplex::ClientProto<T> for RequestIdFieldProto<C, B>
+impl<B, C, T> multiplex::ClientProto<T> for RequestIdFieldProto<B, C>
     where C: Codec + Clone + 'static,
           B: byteorder::ByteOrder + 'static,
           T: Io + 'static
@@ -32,15 +32,15 @@ impl<C, B, T> multiplex::ClientProto<T> for RequestIdFieldProto<C, B>
     type Request = C::Out;
     type Response = C::In;
     type Error = io::Error;
-    type Transport = Framed<T, RequestIdFieldCodec<C, B>>;
+    type Transport = Framed<T, RequestIdFieldCodec<B, C>>;
     type BindTransport = io::Result<Self::Transport>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        Ok(io.framed(RequestIdFieldCodec::<C, B>::new(self.base.clone())))
+        Ok(io.framed(RequestIdFieldCodec::<B, C>::new(self.base.clone())))
     }
 }
 
-impl<C, B, T> multiplex::ServerProto<T> for RequestIdFieldProto<C, B>
+impl<B, C, T> multiplex::ServerProto<T> for RequestIdFieldProto<B, C>
     where C: Codec + Clone + 'static,
           B: byteorder::ByteOrder + 'static,
           T: Io + 'static
@@ -48,23 +48,23 @@ impl<C, B, T> multiplex::ServerProto<T> for RequestIdFieldProto<C, B>
     type Request = C::In;
     type Response = C::Out;
     type Error = io::Error;
-    type Transport = Framed<T, RequestIdFieldCodec<C, B>>;
+    type Transport = Framed<T, RequestIdFieldCodec<B, C>>;
     type BindTransport = io::Result<Self::Transport>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        Ok(io.framed(RequestIdFieldCodec::<C, B>::new(self.base.clone())))
+        Ok(io.framed(RequestIdFieldCodec::<B, C>::new(self.base.clone())))
     }
 }
 
 /// Protocol codec used by [`RequestIdFieldProto`](./struct.RequestIdFieldProto.html).
 #[derive(Debug, Clone, Default)]
-pub struct RequestIdFieldCodec<C, B = byteorder::BigEndian> {
+pub struct RequestIdFieldCodec<B, C> {
     base: C,
     reqid: Option<RequestId>,
     _byteorder: PhantomData<B>,
 }
 
-impl<C, B> RequestIdFieldCodec<C, B> {
+impl<B, C> RequestIdFieldCodec<B, C> {
     pub fn new(base: C) -> Self {
         RequestIdFieldCodec {
             base: base,
@@ -74,8 +74,8 @@ impl<C, B> RequestIdFieldCodec<C, B> {
     }
 }
 
-impl<C: Codec, B> Codec for RequestIdFieldCodec<C, B>
-    where B: ByteOrder
+impl<B, C> Codec for RequestIdFieldCodec<B, C>
+    where B: ByteOrder, C: Codec
 {
     type In = (RequestId, C::In);
     type Out = (RequestId, C::Out);

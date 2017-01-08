@@ -14,7 +14,7 @@ use std::thread;
 use std::time::Duration;
 
 fn main() {
-    let proto = RequestIdFieldProto::<_, byteorder::BigEndian>::new(LengthFieldCodec::<byteorder::BigEndian>::new(4));
+    let proto = RequestIdFieldProto::<byteorder::BigEndian, _>::new(LengthFieldCodec::<byteorder::BigEndian>::new(4));
     {
         let proto = proto.clone();
 
