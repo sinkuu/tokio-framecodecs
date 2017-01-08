@@ -1,3 +1,5 @@
+//! Fixed-length protocol.
+
 use tokio_core::io::{Codec, Io, EasyBuf, Framed};
 use tokio_proto::pipeline::{ServerProto, ClientProto};
 use std::io;
@@ -42,6 +44,7 @@ impl<T: Io + 'static> ClientProto<T> for FixedLengthProto {
     }
 }
 
+/// Protocol codec used by [`FixedLengthProto`](./struct.FixedLengthProto.html).
 #[derive(Debug, Clone)]
 pub struct FixedLengthCodec {
     length: usize,

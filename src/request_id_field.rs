@@ -1,3 +1,5 @@
+//! Converts pipelined protocol to multiplexed protocol by prepending a request id to each frame.
+
 use tokio_core::io::{EasyBuf, Codec, Io, Framed};
 use tokio_proto::multiplex::{self, RequestId};
 use byteorder::{self, ByteOrder};

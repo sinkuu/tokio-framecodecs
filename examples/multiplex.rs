@@ -8,7 +8,7 @@ extern crate byteorder;
 use tokio_core::reactor::Core;
 use tokio_proto::{TcpServer, TcpClient};
 use tokio_service::Service;
-use framecodecs::RequestIdFieldProto;
+use framecodecs::request_id_field::RequestIdFieldProto;
 use framecodecs::length_field::LengthFieldCodec;
 use std::thread;
 use std::time::Duration;

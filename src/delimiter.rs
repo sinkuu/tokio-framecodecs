@@ -1,3 +1,5 @@
+//! Delimitered protocol.
+
 use tokio_core::io::{Codec, Io, EasyBuf, Framed};
 use tokio_proto::pipeline::{ServerProto, ClientProto};
 use std::io;
@@ -43,6 +45,7 @@ impl<T: Io, D> ClientProto<T> for DelimiterProto<D>
     }
 }
 
+/// Protocol codec used by [`DelimiterProto`](./struct.DelimiterProto.html).
 #[derive(Debug, Clone)]
 pub struct DelimiterCodec<D>(D);
 
