@@ -8,14 +8,15 @@ use std::io;
 const SIZE_OF_REQID: usize = 8;
 
 /// A protocol that converts a pipelining codec into a multiplexing codec by prepending a `u64` request id field
-/// to every frame of the base protocol.
+/// to every frame of the base codec.
 #[derive(Debug, Default, Clone)]
 pub struct RequestIdFieldProto<B, C> {
     base: C,
     _byteorder: PhantomData<B>,
 }
 
-impl<B, C> RequestIdFieldProto<B, C> {
+impl<B, C> RequestIdFieldProto<B, C> where C: Codec + Clone {
+    /// Creates a new `RequestIdFieldProto` from a base codec.
     pub fn new(base: C) -> Self {
         RequestIdFieldProto {
             base: base,

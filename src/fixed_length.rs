@@ -2,6 +2,7 @@ use tokio_core::io::{Codec, Io, EasyBuf, Framed};
 use tokio_proto::pipeline::{ServerProto, ClientProto};
 use std::io;
 
+/// A protocol such that frames are continuous and have the same specified length.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FixedLengthProto {
     pub length: usize,

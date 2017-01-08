@@ -4,6 +4,7 @@ use byteorder::ByteOrder;
 use std::marker::PhantomData;
 use std::io;
 
+/// A protocol such that every frame has length field in specified size and byte-order prepended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LengthFieldProto<B> {
     pub field_size: usize,

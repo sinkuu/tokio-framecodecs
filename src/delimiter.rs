@@ -2,16 +2,21 @@ use tokio_core::io::{Codec, Io, EasyBuf, Framed};
 use tokio_proto::pipeline::{ServerProto, ClientProto};
 use std::io;
 
+/// A protocol such that frames are separated with specified delimiters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DelimiterProto<D>(D);
 
 impl<D: Delimiter> DelimiterProto<D> {
+    /// Creates a `DelimiterProto` from the specified delimiter.
     pub fn new(delimiter: D) -> Self {
         DelimiterProto(delimiter)
     }
 }
 
-impl<T: Io + 'static, D: Delimiter + 'static> ServerProto<T> for DelimiterProto<D> {
+impl<T, D> ServerProto<T> for DelimiterProto<D>
+    where T: Io + 'static,
+          D: Delimiter + Clone + 'static
+{
     type Request = Vec<u8>;
     type Response = Vec<u8>;
     type Error = io::Error;
@@ -23,7 +28,10 @@ impl<T: Io + 'static, D: Delimiter + 'static> ServerProto<T> for DelimiterProto<
     }
 }
 
-impl<T: Io + 'static, D: Delimiter + 'static> ClientProto<T> for DelimiterProto<D> {
+impl<T: Io, D> ClientProto<T> for DelimiterProto<D>
+    where T: Io + 'static,
+          D: Delimiter + Clone + 'static
+{
     type Request = Vec<u8>;
     type Response = Vec<u8>;
     type Error = io::Error;
@@ -44,7 +52,9 @@ impl<D> DelimiterCodec<D> {
     }
 }
 
-impl<D: Delimiter> Codec for DelimiterCodec<D> {
+impl<D> Codec for DelimiterCodec<D>
+    where D: Delimiter + Clone
+{
     type In = Vec<u8>;
     type Out = Vec<u8>;
 
@@ -61,8 +71,12 @@ impl<D: Delimiter> Codec for DelimiterCodec<D> {
     }
 }
 
-pub trait Delimiter: Clone {
+/// A delimiter.
+pub trait Delimiter {
+    /// Removes elements from buffer including next occurence of this delimiter,
+    /// and returns the removed part except the delimiter.
     fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>>;
+    /// Appends this delimiter to the buffer.
     fn write_delimiter(&self, buf: &mut Vec<u8>);
 }
 
@@ -170,10 +184,14 @@ fn test_delimiter_char() {
     assert_eq!(v, "、".as_bytes());
 }
 
+/// A line break delimiter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineDelimiter {
+    /// Carriage return.
     Cr,
+    /// Line feed.
     Lf,
+    /// Carriage return / line feed.
     CrLf,
 }
 
