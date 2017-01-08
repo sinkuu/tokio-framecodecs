@@ -28,7 +28,7 @@ fn main() {
         TcpServer::new(proto, addr).serve(|| Ok(EchoService));
     });
 
-    thread::sleep(Duration::from_millis(100));
+    thread::sleep(Duration::from_millis(50));
 
     let mut client = core.run(TcpClient::new(proto).connect(&addr, &handle)).unwrap();
 

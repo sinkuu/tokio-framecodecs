@@ -25,7 +25,7 @@ fn main() {
         });
     }
 
-    thread::sleep(Duration::from_millis(20));
+    thread::sleep(Duration::from_millis(50));
 
     let mut reactor = Core::new().unwrap();
     let handle = reactor.handle();

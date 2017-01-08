@@ -81,17 +81,21 @@ impl<C: Codec, B> Codec for RequestIdFieldCodec<C, B>
     type Out = (RequestId, C::Out);
 
     fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<(RequestId, C::In)>> {
-        let reqid = if let Some(id) = self.reqid {
+        let reqid = if let Some(id) = self.reqid.take() {
             id
         } else {
-            let id = B::read_u64(buf.drain_to(SIZE_OF_REQID).as_slice());
-            self.reqid = Some(id);
-            id
+            if buf.len() < SIZE_OF_REQID {
+                return Ok(None);
+            }
+            B::read_u64(buf.drain_to(SIZE_OF_REQID).as_slice())
         };
 
         match self.base.decode(buf) {
             Ok(Some(msg)) => Ok(Some((reqid, msg))),
-            Ok(None) => Ok(None),
+            Ok(None) => {
+                self.reqid = Some(reqid);
+                Ok(None)
+            }
             Err(e) => Err(e),
         }
     }
