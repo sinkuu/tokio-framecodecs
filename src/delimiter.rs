@@ -35,6 +35,7 @@ impl<T: Io + 'static, D: Delimiter + 'static> ClientProto<T> for DelimiterProto<
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct DelimiterCodec<D>(D);
 
 impl<D> DelimiterCodec<D> {

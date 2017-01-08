@@ -41,14 +41,18 @@ impl<T: Io + 'static> ClientProto<T> for FixedLengthProto {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct FixedLengthCodec {
-    pub length: usize,
+    length: usize,
 }
 
 impl FixedLengthCodec {
     pub fn new(length: usize) -> FixedLengthCodec {
         FixedLengthCodec { length: length }
+    }
+
+    pub fn length(&self) -> usize {
+        self.length
     }
 }
 

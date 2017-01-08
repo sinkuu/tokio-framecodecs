@@ -53,6 +53,7 @@ impl<B: ByteOrder + 'static, T: Io + 'static> ClientProto<T> for LengthFieldProt
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct LengthFieldCodec<B> {
     field_size: usize,
     current_len: Option<usize>,

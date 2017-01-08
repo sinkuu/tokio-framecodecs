@@ -16,3 +16,6 @@ pub use delimiter::DelimiterProto;
 
 pub mod length_field;
 pub use length_field::LengthFieldProto;
+
+pub mod request_id_field;
+pub use request_id_field::RequestIdFieldProto;
