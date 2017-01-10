@@ -377,21 +377,6 @@
 <span id="332">332</span>
 <span id="333">333</span>
 <span id="334">334</span>
-<span id="335">335</span>
-<span id="336">336</span>
-<span id="337">337</span>
-<span id="338">338</span>
-<span id="339">339</span>
-<span id="340">340</span>
-<span id="341">341</span>
-<span id="342">342</span>
-<span id="343">343</span>
-<span id="344">344</span>
-<span id="345">345</span>
-<span id="346">346</span>
-<span id="347">347</span>
-<span id="348">348</span>
-<span id="349">349</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Delimitered protocol.</span>
 
@@ -421,7 +406,7 @@
     <span class='kw'>type</span> <span class='ident'>BindTransport</span> <span class='op'>=</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>Transport</span>, <span class='ident'>io</span>::<span class='ident'>Error</span><span class='op'>&gt;</span>;
 
     <span class='kw'>fn</span> <span class='ident'>bind_transport</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>io</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span>::<span class='ident'>BindTransport</span> {
-        <span class='prelude-val'>Ok</span>(<span class='ident'>io</span>.<span class='ident'>framed</span>(<span class='ident'>DelimiterCodec</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>clone</span>())))
+        <span class='prelude-val'>Ok</span>(<span class='ident'>io</span>.<span class='ident'>framed</span>(<span class='ident'>DelimiterCodec</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>clone</span>())))
     }
 }
 
@@ -436,23 +421,17 @@
     <span class='kw'>type</span> <span class='ident'>BindTransport</span> <span class='op'>=</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>Transport</span><span class='op'>&gt;</span>;
 
     <span class='kw'>fn</span> <span class='ident'>bind_transport</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>io</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span>::<span class='ident'>BindTransport</span> {
-        <span class='prelude-val'>Ok</span>(<span class='ident'>io</span>.<span class='ident'>framed</span>(<span class='ident'>DelimiterCodec</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>clone</span>())))
+        <span class='prelude-val'>Ok</span>(<span class='ident'>io</span>.<span class='ident'>framed</span>(<span class='ident'>DelimiterCodec</span>(<span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>clone</span>())))
     }
 }
 
 <span class='doccomment'>/// Protocol codec used by [`DelimiterProto`](./struct.DelimiterProto.html).</span>
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>DelimiterCodec</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span> {
-    <span class='ident'>delimiter</span>: <span class='ident'>D</span>,
-    <span class='ident'>start</span>: <span class='ident'>usize</span>,
-}
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>DelimiterCodec</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>D</span>);
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span> <span class='ident'>DelimiterCodec</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span> {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>delimiter</span>: <span class='ident'>D</span>) <span class='op'>-&gt;</span> <span class='ident'>DelimiterCodec</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span> {
-        <span class='ident'>DelimiterCodec</span> {
-            <span class='ident'>delimiter</span>: <span class='ident'>delimiter</span>,
-            <span class='ident'>start</span>: <span class='number'>0</span>,
-        }
+        <span class='ident'>DelimiterCodec</span>(<span class='ident'>delimiter</span>)
     }
 }
 
@@ -464,22 +443,13 @@
 
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>
     <span class='kw'>fn</span> <span class='ident'>decode</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>delimiter</span>
-            .<span class='ident'>pop_buf</span>(<span class='self'>self</span>.<span class='ident'>start</span>, <span class='ident'>buf</span>)
-            .<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>item</span><span class='op'>|</span> {
-                <span class='kw'>if</span> <span class='ident'>item</span>.<span class='ident'>is_some</span>() {
-                    <span class='self'>self</span>.<span class='ident'>start</span> <span class='op'>=</span> <span class='number'>0</span>;
-                } <span class='kw'>else</span> {
-                    <span class='self'>self</span>.<span class='ident'>start</span> <span class='op'>=</span> <span class='ident'>buf</span>.<span class='ident'>len</span>();
-                }
-                <span class='ident'>item</span>
-            })
+        <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>pop_buf</span>(<span class='ident'>buf</span>)
     }
 
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>
     <span class='kw'>fn</span> <span class='ident'>encode</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>item</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
         <span class='ident'>buf</span>.<span class='ident'>extend_from_slice</span>(<span class='ident'>item</span>.<span class='ident'>as_slice</span>());
-        <span class='self'>self</span>.<span class='ident'>delimiter</span>.<span class='ident'>write_delimiter</span>(<span class='ident'>buf</span>);
+        <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>write_delimiter</span>(<span class='ident'>buf</span>);
         <span class='prelude-val'>Ok</span>(())
     }
 }
@@ -488,17 +458,17 @@
 <span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Delimiter</span> {
     <span class='doccomment'>/// Removes elements from buffer including next occurence of this delimiter,</span>
     <span class='doccomment'>/// and returns the removed part except the delimiter.</span>
-    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>start</span>: <span class='ident'>usize</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
+    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
     <span class='doccomment'>/// Appends this delimiter to the buffer.</span>
     <span class='kw'>fn</span> <span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>);
 }
 
 <span class='kw'>impl</span> <span class='ident'>Delimiter</span> <span class='kw'>for</span> <span class='ident'>u8</span> {
-    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>start</span>: <span class='ident'>usize</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>pos</span> <span class='op'>=</span> ::<span class='ident'>memchr</span>::<span class='ident'>memchr</span>(<span class='op'>*</span><span class='self'>self</span>, <span class='kw-2'>&amp;</span><span class='ident'>buf</span>.<span class='ident'>as_slice</span>()[<span class='ident'>start</span>..]);
+    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='ident'>pos</span> <span class='op'>=</span> ::<span class='ident'>memchr</span>::<span class='ident'>memchr</span>(<span class='op'>*</span><span class='self'>self</span>, <span class='ident'>buf</span>.<span class='ident'>as_slice</span>());
 
         <span class='prelude-val'>Ok</span>(<span class='ident'>pos</span>.<span class='ident'>map</span>(<span class='kw'>move</span> <span class='op'>|</span><span class='ident'>pos</span><span class='op'>|</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fir</span> <span class='op'>=</span> <span class='ident'>buf</span>.<span class='ident'>drain_to</span>(<span class='ident'>start</span> <span class='op'>+</span> <span class='ident'>pos</span> <span class='op'>+</span> <span class='number'>1</span>);
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fir</span> <span class='op'>=</span> <span class='ident'>buf</span>.<span class='ident'>drain_to</span>(<span class='ident'>pos</span> <span class='op'>+</span> <span class='number'>1</span>);
 
             <span class='kw'>let</span> <span class='ident'>len</span> <span class='op'>=</span> <span class='ident'>fir</span>.<span class='ident'>len</span>();
             <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>len</span> <span class='op'>&gt;</span> <span class='number'>0</span>);
@@ -520,10 +490,10 @@
 
     <span class='kw'>let</span> <span class='ident'>delimiter</span> <span class='op'>=</span> <span class='number'>0</span>;
 
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>1</span>, <span class='number'>1</span>]));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>2</span>]));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>1</span>, <span class='number'>1</span>]));
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>2</span>]));
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
 
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>v</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
     <span class='ident'>delimiter</span>.<span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>v</span>);
@@ -531,12 +501,12 @@
 }
 
 <span class='kw'>impl</span> <span class='ident'>Delimiter</span> <span class='kw'>for</span> <span class='ident'>char</span> {
-    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>start</span>: <span class='ident'>usize</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>pos</span> <span class='op'>=</span> ::<span class='ident'>std</span>::<span class='ident'>str</span>::<span class='ident'>from_utf8</span>(<span class='kw-2'>&amp;</span><span class='ident'>buf</span>.<span class='ident'>as_ref</span>()[<span class='ident'>start</span>..])
+    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='ident'>pos</span> <span class='op'>=</span> ::<span class='ident'>std</span>::<span class='ident'>str</span>::<span class='ident'>from_utf8</span>(<span class='ident'>buf</span>.<span class='ident'>as_ref</span>())
             .<span class='ident'>map_err</span>(<span class='op'>|</span><span class='ident'>err</span><span class='op'>|</span> <span class='ident'>io</span>::<span class='ident'>Error</span>::<span class='ident'>new</span>(<span class='ident'>io</span>::<span class='ident'>ErrorKind</span>::<span class='ident'>Other</span>, <span class='ident'>err</span>.<span class='ident'>to_string</span>()))<span class='question-mark'>?</span>
             .<span class='ident'>char_indices</span>()
             .<span class='ident'>find</span>(<span class='op'>|</span><span class='kw-2'>&amp;</span>(_, <span class='ident'>c</span>)<span class='op'>|</span> <span class='ident'>c</span> <span class='op'>==</span> <span class='op'>*</span><span class='self'>self</span>)
-            .<span class='ident'>map</span>(<span class='op'>|</span>(<span class='ident'>i</span>, _)<span class='op'>|</span> <span class='ident'>i</span> <span class='op'>+</span> <span class='ident'>start</span>);
+            .<span class='ident'>map</span>(<span class='op'>|</span>(<span class='ident'>i</span>, _)<span class='op'>|</span> <span class='ident'>i</span>);
 
         <span class='prelude-val'>Ok</span>(<span class='ident'>pos</span>.<span class='ident'>map</span>(<span class='kw'>move</span> <span class='op'>|</span><span class='ident'>pos</span><span class='op'>|</span> {
             <span class='kw'>let</span> <span class='ident'>bs</span> <span class='op'>=</span> <span class='ident'>buf</span>.<span class='ident'>drain_to</span>(<span class='ident'>pos</span>);
@@ -585,12 +555,12 @@
 
     <span class='kw'>let</span> <span class='ident'>delimiter</span> <span class='op'>=</span> <span class='string'>&#39;、&#39;</span>;
 
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
                <span class='prelude-val'>Some</span>(<span class='string'>&quot;あめ&quot;</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>3</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
                <span class='prelude-val'>Some</span>(<span class='string'>&quot;つち&quot;</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
 
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>v</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
     <span class='ident'>delimiter</span>.<span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>v</span>);
@@ -623,8 +593,8 @@
 }
 
 <span class='kw'>impl</span> <span class='ident'>Delimiter</span> <span class='kw'>for</span> <span class='ident'>LineDelimiter</span> {
-    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>start</span>: <span class='ident'>usize</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>as_slice</span>().<span class='ident'>pop_buf</span>(<span class='ident'>start</span>, <span class='ident'>buf</span>)
+    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>as_slice</span>().<span class='ident'>pop_buf</span>(<span class='ident'>buf</span>)
     }
 
     <span class='kw'>fn</span> <span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) {
@@ -639,12 +609,12 @@
 
     <span class='kw'>let</span> <span class='ident'>delimiter</span> <span class='op'>=</span> <span class='ident'>LineDelimiter</span>::<span class='ident'>CrLf</span>;
 
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
                <span class='prelude-val'>Some</span>(<span class='string'>&quot;あめ&quot;</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
                <span class='prelude-val'>Some</span>(<span class='string'>&quot;つち&quot;</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
 
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>v</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
     <span class='ident'>delimiter</span>.<span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>v</span>);
@@ -652,14 +622,14 @@
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Delimiter</span> <span class='kw'>for</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> [<span class='ident'>u8</span>] {
-    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>start</span>: <span class='ident'>usize</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
         <span class='kw'>if</span> <span class='ident'>buf</span>.<span class='ident'>len</span>() <span class='op'>&lt;</span> <span class='self'>self</span>.<span class='ident'>len</span>() {
             <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='prelude-val'>None</span>);
         }
 
-        <span class='kw'>match</span> ::<span class='ident'>twoway</span>::<span class='ident'>find_bytes</span>(<span class='kw-2'>&amp;</span><span class='ident'>buf</span>.<span class='ident'>as_slice</span>()[<span class='ident'>start</span>..], <span class='self'>self</span>) {
+        <span class='kw'>match</span> ::<span class='ident'>twoway</span>::<span class='ident'>find_bytes</span>(<span class='ident'>buf</span>.<span class='ident'>as_slice</span>(), <span class='self'>self</span>) {
             <span class='prelude-val'>Some</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>b</span> <span class='op'>=</span> <span class='ident'>buf</span>.<span class='ident'>drain_to</span>(<span class='ident'>start</span> <span class='op'>+</span> <span class='ident'>i</span>);
+                <span class='kw'>let</span> <span class='ident'>b</span> <span class='op'>=</span> <span class='ident'>buf</span>.<span class='ident'>drain_to</span>(<span class='ident'>i</span>);
                 <span class='ident'>buf</span>.<span class='ident'>drain_to</span>(<span class='self'>self</span>.<span class='ident'>len</span>());
                 <span class='prelude-val'>Ok</span>(<span class='prelude-val'>Some</span>(<span class='ident'>b</span>.<span class='ident'>as_ref</span>().<span class='ident'>to_vec</span>()))
             }
@@ -676,8 +646,8 @@
 }
 
 <span class='kw'>impl</span> <span class='ident'>Delimiter</span> <span class='kw'>for</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>start</span>: <span class='ident'>usize</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>as_slice</span>().<span class='ident'>pop_buf</span>(<span class='ident'>start</span>, <span class='ident'>buf</span>)
+    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>as_slice</span>().<span class='ident'>pop_buf</span>(<span class='ident'>buf</span>)
     }
 
     <span class='kw'>fn</span> <span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) {
@@ -692,12 +662,12 @@
 
     <span class='kw'>let</span> <span class='ident'>delimiter</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='string'>b&quot;#\0#&quot;</span>[..].<span class='ident'>to_vec</span>();
 
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
                <span class='prelude-val'>Some</span>(<span class='string'>&quot;あめ&quot;</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
                <span class='prelude-val'>Some</span>(<span class='string'>&quot;つち&quot;</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
 
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>v</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
     <span class='ident'>delimiter</span>.<span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>v</span>);
@@ -705,8 +675,8 @@
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Delimiter</span> <span class='kw'>for</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span> {
-    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>start</span>: <span class='ident'>usize</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>as_bytes</span>().<span class='ident'>pop_buf</span>(<span class='ident'>start</span>, <span class='ident'>buf</span>)
+    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>as_bytes</span>().<span class='ident'>pop_buf</span>(<span class='ident'>buf</span>)
     }
 
     <span class='kw'>fn</span> <span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) {
@@ -715,8 +685,8 @@
 }
 
 <span class='kw'>impl</span> <span class='ident'>Delimiter</span> <span class='kw'>for</span> <span class='ident'>String</span> {
-    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>start</span>: <span class='ident'>usize</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>as_bytes</span>().<span class='ident'>pop_buf</span>(<span class='ident'>start</span>, <span class='ident'>buf</span>)
+    <span class='kw'>fn</span> <span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>EasyBuf</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>as_bytes</span>().<span class='ident'>pop_buf</span>(<span class='ident'>buf</span>)
     }
 
     <span class='kw'>fn</span> <span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) {
@@ -731,12 +701,12 @@
 
     <span class='kw'>let</span> <span class='ident'>delimiter</span> <span class='op'>=</span> <span class='string'>&quot;・\n&quot;</span>;
 
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
                <span class='prelude-val'>Some</span>(<span class='string'>&quot;あめ&quot;</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(),
                <span class='prelude-val'>Some</span>(<span class='string'>&quot;つち&quot;</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
-    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>Some</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]));
+    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>delimiter</span>.<span class='ident'>pop_buf</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>).<span class='ident'>unwrap</span>(), <span class='prelude-val'>None</span>);
 
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>v</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
     <span class='ident'>delimiter</span>.<span class='ident'>write_delimiter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>v</span>);
