@@ -14,7 +14,8 @@ use std::thread;
 use std::time::Duration;
 
 fn main() {
-    let proto = RequestIdFieldProto::<byteorder::BigEndian, _>::new(LengthFieldCodec::<byteorder::BigEndian>::new(4));
+    let proto =
+        RequestIdFieldProto::<byteorder::BigEndian, _>::new(LengthFieldCodec::<byteorder::BigEndian>::new(4));
     {
         let proto = proto.clone();
 
@@ -30,7 +31,7 @@ fn main() {
     let mut reactor = Core::new().unwrap();
     let handle = reactor.handle();
 
-    let mut client =
+    let client =
         reactor.run(TcpClient::new(proto).connect(&"0.0.0.0:8000".parse().unwrap(), &handle))
             .unwrap();
 

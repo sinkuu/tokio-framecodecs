@@ -30,7 +30,7 @@ fn main() {
 
     thread::sleep(Duration::from_millis(50));
 
-    let mut client = core.run(TcpClient::new(proto).connect(&addr, &handle)).unwrap();
+    let client = core.run(TcpClient::new(proto).connect(&addr, &handle)).unwrap();
 
     let msg = b"Doe, a deer, a female deer";
     assert_eq!(core.run(client.call(msg.to_vec())).unwrap(), msg);
