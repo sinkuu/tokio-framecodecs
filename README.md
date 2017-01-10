@@ -1,3 +1,3 @@
 # framecodecs
 
-Basic frame codecs
+[Documentation](https://sinkuu.github.io/tokio-framecodecs/framecodecs/)
