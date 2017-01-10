@@ -46,7 +46,7 @@ impl Service for EchoService {
     type Error = io::Error;
     type Future = FutureResult<Self::Response, Self::Error>;
 
-    fn call(&mut self, req: Vec<u8>) -> Self::Future {
+    fn call(&self, req: Vec<u8>) -> Self::Future {
         futures::future::finished(req)
     }
 }
