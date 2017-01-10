@@ -9,14 +9,7 @@ extern crate memchr;
 extern crate log;
 
 pub mod fixed_length;
-pub use fixed_length::FixedLengthProto;
-
 pub mod delimiter;
-pub use delimiter::DelimiterProto;
-
 pub mod length_field;
-pub use length_field::LengthFieldProto;
-
 pub mod request_id_field;
-
 pub mod remote_addr;
