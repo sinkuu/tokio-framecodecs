@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["LengthFieldCodec","Protocol codec used by `LengthFieldProto`."],["LengthFieldProto","A protocol such that every frame has length field prepended in specified size and byte-order."]]});

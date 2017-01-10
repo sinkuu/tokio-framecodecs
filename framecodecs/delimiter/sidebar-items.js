@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["LineDelimiter","A line break delimiter."]],"struct":[["DelimiterCodec","Protocol codec used by `DelimiterProto`."],["DelimiterProto","A protocol such that frames are separated with specified delimiters."]],"trait":[["Delimiter","A delimiter."]]});

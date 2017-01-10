@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["RemoteAddrCodec","Protocol codec used by `RemoteAddrProto`."],["RemoteAddrProto","A wrapper protocol provides remote address of connection. This protocol implements only `ServerProto`."]]});

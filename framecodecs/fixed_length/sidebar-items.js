@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["FixedLengthCodec","Protocol codec used by `FixedLengthProto`."],["FixedLengthProto","A protocol such that frames are continuous and have the same specified length."]]});

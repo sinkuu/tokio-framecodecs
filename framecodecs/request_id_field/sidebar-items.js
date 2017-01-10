@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["RequestIdFieldCodec","Protocol codec used by `RequestIdFieldProto`."],["RequestIdFieldProto","A protocol that converts a pipelining codec into a multiplexing codec by prepending a `u64` request id field to every frame of the base codec."]]});
