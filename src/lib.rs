@@ -18,3 +18,5 @@ pub mod length_field;
 pub use length_field::LengthFieldProto;
 
 pub mod request_id_field;
+
+pub mod remote_addr;
