@@ -262,15 +262,17 @@ impl<'a> Delimiter for &'a [u8] {
             return Ok(None);
         }
 
-        for i in start..buf.len() - self.len() + 1 {
-            if buf.as_slice()[i..].starts_with(self) {
-                let b = buf.drain_to(i);
+        match ::twoway::find_bytes(&buf.as_slice()[start..], self) {
+            Some(i) => {
+                let b = buf.drain_to(start + i);
                 buf.drain_to(self.len());
-                return Ok(Some(b.as_ref().to_vec()));
+                Ok(Some(b.as_ref().to_vec()))
+            }
+
+            None => {
+                Ok(None)
             }
         }
-
-        Ok(None)
     }
 
     fn write_delimiter(&self, buf: &mut Vec<u8>) {
