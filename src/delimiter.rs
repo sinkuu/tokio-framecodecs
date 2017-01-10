@@ -26,7 +26,7 @@ impl<T, D> ServerProto<T> for DelimiterProto<D>
     type BindTransport = Result<Self::Transport, io::Error>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        Ok(io.framed(DelimiterCodec(self.0.clone())))
+        Ok(io.framed(DelimiterCodec::new(self.0.clone())))
     }
 }
 
@@ -41,17 +41,23 @@ impl<T: Io, D> ClientProto<T> for DelimiterProto<D>
     type BindTransport = io::Result<Self::Transport>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        Ok(io.framed(DelimiterCodec(self.0.clone())))
+        Ok(io.framed(DelimiterCodec::new(self.0.clone())))
     }
 }
 
 /// Protocol codec used by [`DelimiterProto`](./struct.DelimiterProto.html).
 #[derive(Debug, Clone)]
-pub struct DelimiterCodec<D>(D);
+pub struct DelimiterCodec<D> {
+    delimiter: D,
+    start: usize,
+}
 
 impl<D> DelimiterCodec<D> {
     pub fn new(delimiter: D) -> DelimiterCodec<D> {
-        DelimiterCodec(delimiter)
+        DelimiterCodec {
+            delimiter: delimiter,
+            start: 0,
+        }
     }
 }
 
@@ -63,13 +69,22 @@ impl<D> Codec for DelimiterCodec<D>
 
     #[inline]
     fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
-        self.0.pop_buf(buf)
+        self.delimiter
+            .pop_buf(self.start, buf)
+            .map(|item| {
+                if item.is_some() {
+                    self.start = 0;
+                } else {
+                    self.start = buf.len();
+                }
+                item
+            })
     }
 
     #[inline]
     fn encode(&mut self, item: Vec<u8>, buf: &mut Vec<u8>) -> io::Result<()> {
         buf.extend_from_slice(item.as_slice());
-        self.0.write_delimiter(buf);
+        self.delimiter.write_delimiter(buf);
         Ok(())
     }
 }
@@ -78,17 +93,17 @@ impl<D> Codec for DelimiterCodec<D>
 pub trait Delimiter {
     /// Removes elements from buffer including next occurence of this delimiter,
     /// and returns the removed part except the delimiter.
-    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>>;
+    fn pop_buf(&self, start: usize, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>>;
     /// Appends this delimiter to the buffer.
     fn write_delimiter(&self, buf: &mut Vec<u8>);
 }
 
 impl Delimiter for u8 {
-    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
-        let pos = ::memchr::memchr(*self, buf.as_slice());
+    fn pop_buf(&self, start: usize, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        let pos = ::memchr::memchr(*self, &buf.as_slice()[start..]);
 
         Ok(pos.map(move |pos| {
-            let mut fir = buf.drain_to(pos + 1);
+            let mut fir = buf.drain_to(start + pos + 1);
 
             let len = fir.len();
             debug_assert!(len > 0);
@@ -110,10 +125,10 @@ fn test_delimiter_u8() {
 
     let delimiter = 0;
 
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![1, 1]));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![2]));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), Some(vec![1, 1]));
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), Some(vec![2]));
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), Some(vec![]));
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), None);
 
     let mut v = vec![];
     delimiter.write_delimiter(&mut v);
@@ -121,12 +136,12 @@ fn test_delimiter_u8() {
 }
 
 impl Delimiter for char {
-    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
-        let pos = ::std::str::from_utf8(buf.as_ref())
+    fn pop_buf(&self, start: usize, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        let pos = ::std::str::from_utf8(&buf.as_ref()[start..])
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?
             .char_indices()
             .find(|&(_, c)| c == *self)
-            .map(|(i, _)| i);
+            .map(|(i, _)| i + start);
 
         Ok(pos.map(move |pos| {
             let bs = buf.drain_to(pos);
@@ -175,12 +190,12 @@ fn test_delimiter_char() {
 
     let delimiter = '、';
 
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(),
                Some("あめ".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+    assert_eq!(delimiter.pop_buf(3, &mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), Some(vec![]));
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), None);
 
     let mut v = vec![];
     delimiter.write_delimiter(&mut v);
@@ -213,8 +228,8 @@ impl LineDelimiter {
 }
 
 impl Delimiter for LineDelimiter {
-    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
-        self.as_slice().pop_buf(buf)
+    fn pop_buf(&self, start: usize, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        self.as_slice().pop_buf(start, buf)
     }
 
     fn write_delimiter(&self, buf: &mut Vec<u8>) {
@@ -229,12 +244,12 @@ fn test_delimiter_line() {
 
     let delimiter = LineDelimiter::CrLf;
 
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(),
                Some("あめ".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), Some(vec![]));
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), None);
 
     let mut v = vec![];
     delimiter.write_delimiter(&mut v);
@@ -242,12 +257,12 @@ fn test_delimiter_line() {
 }
 
 impl<'a> Delimiter for &'a [u8] {
-    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+    fn pop_buf(&self, start: usize, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
         if buf.len() < self.len() {
             return Ok(None);
         }
 
-        for i in 0..buf.len() - self.len() + 1 {
+        for i in start..buf.len() - self.len() + 1 {
             if buf.as_slice()[i..].starts_with(self) {
                 let b = buf.drain_to(i);
                 buf.drain_to(self.len());
@@ -264,8 +279,8 @@ impl<'a> Delimiter for &'a [u8] {
 }
 
 impl Delimiter for Vec<u8> {
-    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
-        self.as_slice().pop_buf(buf)
+    fn pop_buf(&self, start: usize, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        self.as_slice().pop_buf(start, buf)
     }
 
     fn write_delimiter(&self, buf: &mut Vec<u8>) {
@@ -280,12 +295,12 @@ fn test_delimiter_vec() {
 
     let delimiter = &b"#\0#"[..].to_vec();
 
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(),
                Some("あめ".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), Some(vec![]));
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), None);
 
     let mut v = vec![];
     delimiter.write_delimiter(&mut v);
@@ -293,8 +308,8 @@ fn test_delimiter_vec() {
 }
 
 impl<'a> Delimiter for &'a str {
-    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
-        self.as_bytes().pop_buf(buf)
+    fn pop_buf(&self, start: usize, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        self.as_bytes().pop_buf(start, buf)
     }
 
     fn write_delimiter(&self, buf: &mut Vec<u8>) {
@@ -303,8 +318,8 @@ impl<'a> Delimiter for &'a str {
 }
 
 impl Delimiter for String {
-    fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
-        self.as_bytes().pop_buf(buf)
+    fn pop_buf(&self, start: usize, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>> {
+        self.as_bytes().pop_buf(start, buf)
     }
 
     fn write_delimiter(&self, buf: &mut Vec<u8>) {
@@ -319,12 +334,12 @@ fn test_delimiter_string() {
 
     let delimiter = "・\n";
 
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(),
                Some("あめ".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(),
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(),
                Some("つち".as_bytes().to_vec()));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), Some(vec![]));
-    assert_eq!(delimiter.pop_buf(&mut buf).unwrap(), None);
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), Some(vec![]));
+    assert_eq!(delimiter.pop_buf(0, &mut buf).unwrap(), None);
 
     let mut v = vec![];
     delimiter.write_delimiter(&mut v);
