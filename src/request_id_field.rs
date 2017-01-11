@@ -34,7 +34,6 @@ impl<B, C, T> multiplex::ClientProto<T> for RequestIdFieldProto<B, C>
 {
     type Request = C::Out;
     type Response = C::In;
-    type Error = io::Error;
     type Transport = Framed<T, RequestIdFieldCodec<B, C>>;
     type BindTransport = io::Result<Self::Transport>;
 
@@ -50,7 +49,6 @@ impl<B, C, T> multiplex::ServerProto<T> for RequestIdFieldProto<B, C>
 {
     type Request = C::In;
     type Response = C::Out;
-    type Error = io::Error;
     type Transport = Framed<T, RequestIdFieldCodec<B, C>>;
     type BindTransport = io::Result<Self::Transport>;
 

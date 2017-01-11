@@ -26,7 +26,6 @@ impl<T> pipeline::ClientProto<T> for VarIntLengthFieldProto
 {
     type Request = Vec<u8>;
     type Response = Vec<u8>;
-    type Error = io::Error;
     type Transport = Framed<T, VarIntLengthFieldCodec>;
     type BindTransport = Result<Self::Transport, io::Error>;
 
@@ -40,7 +39,6 @@ impl<T> pipeline::ServerProto<T> for VarIntLengthFieldProto
 {
     type Request = Vec<u8>;
     type Response = Vec<u8>;
-    type Error = io::Error;
     type Transport = Framed<T, VarIntLengthFieldCodec>;
     type BindTransport = Result<Self::Transport, io::Error>;
 

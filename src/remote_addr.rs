@@ -63,7 +63,6 @@ impl<C> pipeline::ServerProto<TcpStream> for RemoteAddrProto<C, Pipeline>
 {
     type Request = (SocketAddr, C::In);
     type Response = C::Out;
-    type Error = io::Error;
     type Transport = Framed<TcpStream, RemoteAddrCodec<C, Pipeline>>;
     type BindTransport = io::Result<Self::Transport>;
 
@@ -81,7 +80,6 @@ impl<C, In, Out> multiplex::ServerProto<TcpStream> for RemoteAddrProto<C, Multip
 {
     type Request = (SocketAddr, In);
     type Response = Out;
-    type Error = io::Error;
     type Transport = Framed<TcpStream, RemoteAddrCodec<C, Multiplex>>;
     type BindTransport = io::Result<Self::Transport>;
 

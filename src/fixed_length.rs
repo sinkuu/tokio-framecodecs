@@ -23,7 +23,6 @@ impl FixedLengthProto {
 impl<T: Io + 'static> ServerProto<T> for FixedLengthProto {
     type Request = Vec<u8>;
     type Response = Vec<u8>;
-    type Error = io::Error;
     type Transport = Framed<T, FixedLengthCodec>;
     type BindTransport = io::Result<Self::Transport>;
 
@@ -35,7 +34,6 @@ impl<T: Io + 'static> ServerProto<T> for FixedLengthProto {
 impl<T: Io + 'static> ClientProto<T> for FixedLengthProto {
     type Request = Vec<u8>;
     type Response = Vec<u8>;
-    type Error = io::Error;
     type Transport = Framed<T, FixedLengthCodec>;
     type BindTransport = io::Result<Self::Transport>;
 

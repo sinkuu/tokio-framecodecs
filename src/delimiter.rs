@@ -21,7 +21,6 @@ impl<T, D> ServerProto<T> for DelimiterProto<D>
 {
     type Request = Vec<u8>;
     type Response = Vec<u8>;
-    type Error = io::Error;
     type Transport = Framed<T, DelimiterCodec<D>>;
     type BindTransport = Result<Self::Transport, io::Error>;
 
@@ -36,7 +35,6 @@ impl<T: Io, D> ClientProto<T> for DelimiterProto<D>
 {
     type Request = Vec<u8>;
     type Response = Vec<u8>;
-    type Error = io::Error;
     type Transport = Framed<T, DelimiterCodec<D>>;
     type BindTransport = io::Result<Self::Transport>;
 

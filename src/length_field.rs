@@ -35,7 +35,6 @@ impl<B> LengthFieldProto<B> {
 impl<B: ByteOrder + 'static, T: Io + 'static> ServerProto<T> for LengthFieldProto<B> {
     type Request = Vec<u8>;
     type Response = Vec<u8>;
-    type Error = io::Error;
     type Transport = Framed<T, LengthFieldCodec<B>>;
     type BindTransport = io::Result<Self::Transport>;
 
@@ -47,7 +46,6 @@ impl<B: ByteOrder + 'static, T: Io + 'static> ServerProto<T> for LengthFieldProt
 impl<B: ByteOrder + 'static, T: Io + 'static> ClientProto<T> for LengthFieldProto<B> {
     type Request = Vec<u8>;
     type Response = Vec<u8>;
-    type Error = io::Error;
     type Transport = Framed<T, LengthFieldCodec<B>>;
     type BindTransport = io::Result<Self::Transport>;
 
