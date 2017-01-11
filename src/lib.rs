@@ -1,4 +1,4 @@
-//! `framecodecs` provides simple protocol implementations to be used with `tokio_proto::pipeline`.
+//! `framecodecs` provides simple protocol implementations to be used with tokio-proto.
 
 extern crate futures;
 extern crate tokio_core;
