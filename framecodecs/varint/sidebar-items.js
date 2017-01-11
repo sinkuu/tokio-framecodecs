@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["VarIntLengthFieldCodec","Protocol codec used by `VarIntLengthFieldProto`."],["VarIntLengthFieldProto","A protocol such that every frame has length field prepended in Protobuf's base 128 varint."]]});
