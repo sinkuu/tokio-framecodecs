@@ -12,3 +12,4 @@ pub mod delimiter;
 pub mod length_field;
 pub mod request_id_field;
 pub mod remote_addr;
+pub mod varint;
