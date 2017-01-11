@@ -4,7 +4,7 @@
 //! extern crate tokio_proto;
 //! extern crate framecodecs;
 //! extern crate service_fn;
-//! 
+//!
 //! use tokio_proto::TcpServer;
 //! use tokio_proto::pipeline::Pipeline;
 //! use framecodecs::delimiter::{DelimiterCodec, LineDelimiter};
@@ -40,6 +40,7 @@ pub struct RemoteAddrProto<C, Kind> {
 }
 
 impl<C: Clone, Kind> RemoteAddrProto<C, Kind> {
+    /// Creates a new `RemoteAddrProto` based on codec `inner`.
     #[inline]
     pub fn new(inner: C) -> Self {
         RemoteAddrProto {
@@ -99,6 +100,7 @@ pub struct RemoteAddrCodec<C, Kind> {
 }
 
 impl<C, Kind> RemoteAddrCodec<C, Kind> {
+    /// Creates a new `RemoteAddrCodec` based on codec `inner`.
     #[inline]
     pub fn new(inner: C, peer_addr: SocketAddr) -> Self {
         RemoteAddrCodec {

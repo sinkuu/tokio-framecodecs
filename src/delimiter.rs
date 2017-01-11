@@ -76,10 +76,10 @@ impl<D> Codec for DelimiterCodec<D>
 
 /// A delimiter.
 pub trait Delimiter {
-    /// Removes elements from buffer including next occurence of this delimiter,
+    /// Removes elements from `buf` including next occurence of this delimiter,
     /// and returns the removed part except the delimiter.
     fn pop_buf(&self, buf: &mut EasyBuf) -> io::Result<Option<Vec<u8>>>;
-    /// Appends this delimiter to the buffer.
+    /// Appends this delimiter to `buf`.
     fn write_delimiter(&self, buf: &mut Vec<u8>);
 }
 

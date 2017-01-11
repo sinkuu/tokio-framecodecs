@@ -6,7 +6,8 @@ use std::io;
 use std::mem;
 
 /// A protocol such that every frame has length field prepended in
-/// [Protobuf's base 128 varint](https://developers.google.com/protocol-buffers/docs/encoding#varints).
+/// [Protobuf's base 128 varint](https://developers.google.com/protocol-buffers/docs/encoding#varints)
+/// format.
 #[derive(Debug, Clone, Default)]
 pub struct VarIntLengthFieldProto;
 
