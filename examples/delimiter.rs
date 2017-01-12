@@ -8,6 +8,7 @@ use framecodecs::frame::{DelimiterProto, LineDelimiter};
 
 use futures::future::FutureResult;
 
+use tokio_core::io::EasyBuf;
 use tokio_core::reactor::Core;
 use tokio_proto::{TcpClient, TcpServer};
 use tokio_service::Service;
@@ -33,20 +34,20 @@ fn main() {
     let client = core.run(TcpClient::new(proto).connect(&addr, &handle)).unwrap();
 
     let msg = b"Doe, a deer, a female deer";
-    assert_eq!(core.run(client.call(msg.to_vec())).unwrap(), msg);
+    assert_eq!(core.run(client.call(msg.to_vec())).unwrap().as_slice().to_vec(), msg);
     let msg = b"Ray, a drop of golden sun";
-    assert_eq!(core.run(client.call(msg.to_vec())).unwrap(), msg);
+    assert_eq!(core.run(client.call(msg.to_vec())).unwrap().as_slice().to_vec(), msg);
 }
 
 struct EchoService;
 
 impl Service for EchoService {
-    type Request = Vec<u8>;
+    type Request = EasyBuf;
     type Response = Vec<u8>;
     type Error = io::Error;
     type Future = FutureResult<Self::Response, Self::Error>;
 
-    fn call(&self, req: Vec<u8>) -> Self::Future {
-        futures::future::finished(req)
+    fn call(&self, req: EasyBuf) -> Self::Future {
+        futures::future::finished(req.as_slice().to_vec())
     }
 }

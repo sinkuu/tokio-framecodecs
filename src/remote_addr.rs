@@ -1,10 +1,12 @@
 //! Wrapper protocol for providing remote address of connection.
 //!
 //! ```rust,no_run
+//! extern crate tokio_core;
 //! extern crate tokio_proto;
 //! extern crate framecodecs;
 //! extern crate service_fn;
 //!
+//! use tokio_core::io::EasyBuf;
 //! use tokio_proto::TcpServer;
 //! use tokio_proto::pipeline::Pipeline;
 //! use framecodecs::frame::{DelimiterProto, LineDelimiter};
@@ -15,9 +17,9 @@
 //!     let proto = DelimiterProto::new(LineDelimiter::Lf);
 //!     let proto = RemoteAddrProto::new(proto);
 //!     TcpServer::new(proto, "0.0.0.0:8000".parse().unwrap()).serve(|| {
-//!         Ok(service_fn::service_fn(|(addr, line): (SocketAddr, Vec<u8>)| {
-//!             println!("{}: {}", addr, String::from_utf8_lossy(&line));
-//!             Ok(line)
+//!         Ok(service_fn::service_fn(|(addr, line): (SocketAddr, EasyBuf)| {
+//!             println!("{}: {}", addr, String::from_utf8_lossy(line.as_slice()));
+//!             Ok(line.as_slice().to_vec())
 //!         }))
 //!     });
 //! }
