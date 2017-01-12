@@ -79,20 +79,15 @@ impl<Proto> multiplex::ServerProto<TcpStream> for RemoteAddrProto<Proto>
 }
 
 #[derive(Debug)]
-pub enum NewRemoteAddrTransport<Transport, Kind> {
-    Pending {
-        inner: Transport,
-        peer_addr: io::Result<SocketAddr>,
-        _kind: PhantomData<Kind>,
-    },
-    Done,
+pub struct NewRemoteAddrTransport<Transport, Kind> {
+    payload: Option<(Transport, io::Result<SocketAddr>)>,
+    _kind: PhantomData<Kind>,
 }
 
 impl<Transport, Kind> NewRemoteAddrTransport<Transport, Kind> {
     fn new(transport: Transport, peer_addr: io::Result<SocketAddr>) -> Self {
-        NewRemoteAddrTransport::Pending {
-            inner: transport,
-            peer_addr: peer_addr,
+        NewRemoteAddrTransport {
+            payload: Some((transport, peer_addr)),
             _kind: PhantomData,
         }
     }
@@ -105,33 +100,22 @@ impl<Transport, Kind> Future for NewRemoteAddrTransport<Transport, Kind>
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        use std::mem;
-        *self = match mem::replace(self, NewRemoteAddrTransport::Done) {
-            NewRemoteAddrTransport::Pending { mut inner, peer_addr, .. } => {
-                match inner.poll() {
+        match self.payload.take() {
+            Some((mut transport, peer_addr)) => {
+                let t = match transport.poll() {
                     Ok(Async::NotReady) => {
-                        NewRemoteAddrTransport::Pending {
-                            inner: inner,
-                            peer_addr: peer_addr,
-                            _kind: PhantomData
-                        }
+                        self.payload = Some((transport, peer_addr));
+                        return Ok(Async::NotReady);
                     }
-                    Ok(Async::Ready(t)) => {
-                        return Ok(Async::Ready(RemoteAddrTransport::new(
-                            t, peer_addr?)));
-                    }
-                    Err(e) => {
-                        return Err(e);
-                    }
-                }
+                    Ok(Async::Ready(t)) => t,
+                    Err(e) => return Err(e),
+                };
+                Ok(Async::Ready(RemoteAddrTransport::new(t, peer_addr?)))
             }
-
-            NewRemoteAddrTransport::Done => {
+            None => {
                 panic!("cannot be polled twice");
             }
-        };
-
-        Ok(Async::NotReady)
+        }
     }
 }
 

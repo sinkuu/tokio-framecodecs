@@ -98,7 +98,7 @@ impl Codec for VarIntLengthFieldCodec {
                           (mem::size_of::<usize>() * 8 - (size.leading_zeros() as usize) + 6) / 7);
         while size > 0 {
             buf.push(((size & 0x7F) as u8) | if size >= 0x80 { 0x80 } else { 0 });
-            size = size >> 7;
+            size >>= 7;
         }
         buf.extend(item);
         Ok(())
