@@ -26,7 +26,7 @@ use tokio_core::net::TcpStream;
 use tokio_proto::{pipeline, multiplex};
 use tokio_proto::pipeline::Pipeline;
 use tokio_proto::multiplex::{Multiplex, RequestId};
-use futures::{Future, Sink, Stream, Poll, StartSend, IntoFuture};
+use futures::{Async, Future, Sink, Stream, Poll, StartSend, IntoFuture};
 use std::io;
 use std::net::SocketAddr;
 use std::marker::PhantomData;
@@ -54,17 +54,12 @@ impl<Proto> pipeline::ServerProto<TcpStream> for RemoteAddrProto<Proto>
     type Request = (SocketAddr, Proto::Request);
     type Response = Proto::Response;
     type Transport = RemoteAddrTransport<Proto::Transport, Pipeline>;
-    type BindTransport = Box<Future<Item = Self::Transport, Error = io::Error>>;
+    type BindTransport = NewRemoteAddrTransport<<Proto::BindTransport as IntoFuture>::Future, Pipeline>;
 
     #[inline]
     fn bind_transport(&self, io: TcpStream) -> Self::BindTransport {
-        let addr: Result<_, _> = io.peer_addr();
-
-        Box::new(self.inner.bind_transport(io)
-            .into_future()
-            .and_then(move |t| {
-                addr.map(|addr| RemoteAddrTransport::new(t, addr))
-        }))
+        let peer_addr: io::Result<_> = io.peer_addr();
+        NewRemoteAddrTransport::new(self.inner.bind_transport(io).into_future(), peer_addr)
     }
 }
 
@@ -74,17 +69,69 @@ impl<Proto> multiplex::ServerProto<TcpStream> for RemoteAddrProto<Proto>
     type Request = (SocketAddr, Proto::Request);
     type Response = Proto::Response;
     type Transport = RemoteAddrTransport<Proto::Transport, Multiplex>;
-    type BindTransport = Box<Future<Item = Self::Transport, Error = io::Error>>;
+    type BindTransport = NewRemoteAddrTransport<<Proto::BindTransport as IntoFuture>::Future, Multiplex>;
 
     #[inline]
     fn bind_transport(&self, io: TcpStream) -> Self::BindTransport {
-        let addr: Result<_, _> = io.peer_addr();
+        let peer_addr: io::Result<_> = io.peer_addr();
+        NewRemoteAddrTransport::new(self.inner.bind_transport(io).into_future(), peer_addr)
+    }
+}
 
-        Box::new(self.inner.bind_transport(io)
-            .into_future()
-            .and_then(move |t| {
-                addr.map(|addr| RemoteAddrTransport::new(t, addr))
-        }))
+#[derive(Debug)]
+pub enum NewRemoteAddrTransport<Transport, Kind> {
+    Pending {
+        inner: Transport,
+        peer_addr: io::Result<SocketAddr>,
+        _kind: PhantomData<Kind>,
+    },
+    Done,
+}
+
+impl<Transport, Kind> NewRemoteAddrTransport<Transport, Kind> {
+    fn new(transport: Transport, peer_addr: io::Result<SocketAddr>) -> Self {
+        NewRemoteAddrTransport::Pending {
+            inner: transport,
+            peer_addr: peer_addr,
+            _kind: PhantomData,
+        }
+    }
+}
+
+impl<Transport, Kind> Future for NewRemoteAddrTransport<Transport, Kind>
+    where Transport: Future<Error = io::Error>
+{
+    type Item = RemoteAddrTransport<Transport::Item, Kind>;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        use std::mem;
+        *self = match mem::replace(self, NewRemoteAddrTransport::Done) {
+            NewRemoteAddrTransport::Pending { mut inner, peer_addr, .. } => {
+                match inner.poll() {
+                    Ok(Async::NotReady) => {
+                        NewRemoteAddrTransport::Pending {
+                            inner: inner,
+                            peer_addr: peer_addr,
+                            _kind: PhantomData
+                        }
+                    }
+                    Ok(Async::Ready(t)) => {
+                        return Ok(Async::Ready(RemoteAddrTransport::new(
+                            t, peer_addr?)));
+                    }
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+
+            NewRemoteAddrTransport::Done => {
+                panic!("cannot be polled twice");
+            }
+        };
+
+        Ok(Async::NotReady)
     }
 }
 
