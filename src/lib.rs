@@ -11,3 +11,4 @@ extern crate twoway;
 pub mod frame;
 pub mod request_id_field;
 pub mod remote_addr;
+pub mod decode_to_vec;
