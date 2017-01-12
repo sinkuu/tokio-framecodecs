@@ -3,7 +3,7 @@ extern crate tokio_core;
 extern crate tokio_proto;
 extern crate futures;
 
-use framecodecs::fixed_length::FixedLengthCodec;
+use framecodecs::frame::FixedLengthCodec;
 use tokio_core::net::TcpStream;
 use tokio_core::io::Io;
 use futures::{Stream, Sink};

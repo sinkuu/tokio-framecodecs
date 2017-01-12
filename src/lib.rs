@@ -8,9 +8,6 @@ extern crate byteorder;
 extern crate memchr;
 extern crate twoway;
 
-pub mod fixed_length;
-pub mod delimiter;
-pub mod length_field;
+pub mod frame;
 pub mod request_id_field;
 pub mod remote_addr;
-pub mod varint;

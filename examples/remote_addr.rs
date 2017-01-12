@@ -3,7 +3,7 @@ extern crate tokio_proto;
 extern crate service_fn;
 
 use tokio_proto::TcpServer;
-use framecodecs::delimiter::{DelimiterProto, LineDelimiter};
+use framecodecs::frame::{DelimiterProto, LineDelimiter};
 use framecodecs::remote_addr::RemoteAddrProto;
 use std::net::SocketAddr;
 

@@ -1,11 +1,11 @@
-//! Length field prepending protocol.
-
 use tokio_core::io::{Codec, Io, EasyBuf, Framed};
 use tokio_proto::pipeline::{ServerProto, ClientProto};
 use byteorder::ByteOrder;
 use std::marker::PhantomData;
 use std::io;
 
+/// Length field prepending protocol.
+///
 /// A protocol such that every frame has length field prepended in specified size and byte-order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LengthFieldProto<B> {

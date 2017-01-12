@@ -4,7 +4,7 @@ extern crate tokio_proto;
 extern crate tokio_service;
 extern crate futures;
 
-use framecodecs::delimiter::{DelimiterProto, LineDelimiter};
+use framecodecs::frame::{DelimiterProto, LineDelimiter};
 
 use futures::future::FutureResult;
 

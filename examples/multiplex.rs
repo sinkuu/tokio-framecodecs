@@ -9,7 +9,7 @@ use tokio_core::reactor::Core;
 use tokio_proto::{TcpServer, TcpClient};
 use tokio_service::Service;
 use framecodecs::request_id_field::RequestIdFieldProto;
-use framecodecs::length_field::LengthFieldCodec;
+use framecodecs::frame::LengthFieldCodec;
 use std::thread;
 use std::time::Duration;
 

@@ -1,10 +1,10 @@
-//! Length field based protocol using Protobuf's base 128 varint.
-
 use tokio_core::io::{Codec, Io, EasyBuf, Framed};
 use tokio_proto::pipeline;
 use std::io;
 use std::mem;
 
+/// Length field based protocol using Protobuf's base 128 varint.
+///
 /// A protocol such that every frame has length field prepended in
 /// [Protobuf's base 128 varint](https://developers.google.com/protocol-buffers/docs/encoding#varints)
 /// format.

@@ -1,9 +1,9 @@
-//! Delimitered protocol.
-
 use tokio_core::io::{Codec, Io, EasyBuf, Framed};
 use tokio_proto::pipeline::{ServerProto, ClientProto};
 use std::io;
 
+/// Delimitered protocol.
+///
 /// A protocol such that frames are separated with specified delimiters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DelimiterProto<D>(D);

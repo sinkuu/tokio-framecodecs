@@ -7,7 +7,7 @@
 //!
 //! use tokio_proto::TcpServer;
 //! use tokio_proto::pipeline::Pipeline;
-//! use framecodecs::delimiter::{DelimiterProto, LineDelimiter};
+//! use framecodecs::frame::{DelimiterProto, LineDelimiter};
 //! use framecodecs::remote_addr::RemoteAddrProto;
 //! use std::net::SocketAddr;
 //!
