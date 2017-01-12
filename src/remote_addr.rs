@@ -27,6 +27,7 @@ use tokio_core::net::TcpStream;
 use tokio_proto::{pipeline, multiplex};
 use tokio_proto::pipeline::Pipeline;
 use tokio_proto::multiplex::{Multiplex, RequestId};
+use futures::{Sink, Stream, Poll};
 use std::io;
 use std::net::SocketAddr;
 use std::marker::PhantomData;
@@ -92,18 +93,18 @@ impl<C, In, Out> multiplex::ServerProto<TcpStream> for RemoteAddrProto<C, Multip
     }
 }
 
-/// Protocol codec used by [`RemoteAddrProto`](./struct.RemoteAddrProto.html).
-pub struct RemoteAddrCodec<C, Kind> {
-    inner: C,
+/// The transport used by [`RemoteAddrProto`](./struct.RemoteAddrProto.html).
+pub struct RemoteAddrTransport<Transport, Kind> {
+    inner: Transport,
     peer_addr: SocketAddr,
     _kind: PhantomData<Kind>,
 }
 
-impl<C, Kind> RemoteAddrCodec<C, Kind> {
-    /// Creates a new `RemoteAddrCodec` based on codec `inner`.
+impl<Transport, Kind> RemoteAddrTransport<Transport, Kind> {
+    /// Creates a new `RemoteAddrTransport` based on a transport `inner`.
     #[inline]
-    pub fn new(inner: C, peer_addr: SocketAddr) -> Self {
-        RemoteAddrCodec {
+    pub fn new(inner: Transport, peer_addr: SocketAddr) -> Self {
+        RemoteAddrTransport {
             inner: inner,
             peer_addr: peer_addr,
             _kind: PhantomData,
@@ -111,40 +112,24 @@ impl<C, Kind> RemoteAddrCodec<C, Kind> {
     }
 }
 
-impl<C> Codec for RemoteAddrCodec<C, Pipeline>
-    where C: Codec
+impl<Proto, T, E> Stream for RemoteAddrTransport<Proto, Pipeline>
+    where Proto: Stream<Item = T, Error = E>
 {
-    type In = (SocketAddr, C::In);
-    type Out = C::Out;
+    type Item = (SocketAddr, T);
+    type Error = E;
 
     #[inline]
-    fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Self::In>> {
-        self.inner
-            .decode(buf)
-            .map(|item| item.map(|item| (self.peer_addr, item)))
-    }
-
-    #[inline]
-    fn encode(&mut self, item: Self::Out, buf: &mut Vec<u8>) -> io::Result<()> {
-        self.inner.encode(item, buf)
+    fn poll(&mut self) -> Poll<Option<Self::Item>, E> {
+        self.inner.poll().map(|ok| ok.map(|item| (self.peer_addr, item)))
     }
 }
 
-impl<C, In, Out> Codec for RemoteAddrCodec<C, Multiplex>
-    where C: Codec<In = (RequestId, In), Out = (RequestId, Out)>
+impl<Proto, T, E> Sink for RemoteAddrTransport<Proto, Pipeline>
+    where Proto: Sink<Item = T, Error = E>
 {
-    type In = (RequestId, (SocketAddr, In));
-    type Out = (RequestId, Out);
+    type Item = T;
+    type Error = E;
 
     #[inline]
-    fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Self::In>> {
-        self.inner
-            .decode(buf)
-            .map(|item| item.map(|(reqid, item)| (reqid, (self.peer_addr, item))))
-    }
-
-    #[inline]
-    fn encode(&mut self, item: Self::Out, buf: &mut Vec<u8>) -> io::Result<()> {
-        self.inner.encode(item, buf)
-    }
+    fn start_send(&mut self, item: T) -> StartSend<T, E>
 }
