@@ -7,101 +7,99 @@
 //!
 //! use tokio_proto::TcpServer;
 //! use tokio_proto::pipeline::Pipeline;
-//! use framecodecs::delimiter::{DelimiterCodec, LineDelimiter};
+//! use framecodecs::delimiter::{DelimiterProto, LineDelimiter};
 //! use framecodecs::remote_addr::RemoteAddrProto;
 //! use std::net::SocketAddr;
 //!
-//! # fn main() {
-//! let codec = DelimiterCodec::new(LineDelimiter::Lf);
-//! let proto = RemoteAddrProto::<_, Pipeline>::new(codec);
-//! TcpServer::new(proto, "0.0.0.0:8000".parse().unwrap()).serve(|| {
-//!     Ok(service_fn::service_fn(|(addr, line): (SocketAddr, Vec<u8>)| {
-//!         println!("{}: {}", addr, String::from_utf8_lossy(&line));
-//!         Ok(line)
-//!     }))
-//! });
-//! # }
+//! fn main() {
+//!     let proto = DelimiterProto::new(LineDelimiter::Lf);
+//!     let proto = RemoteAddrProto::new(proto);
+//!     TcpServer::new(proto, "0.0.0.0:8000".parse().unwrap()).serve(|| {
+//!         Ok(service_fn::service_fn(|(addr, line): (SocketAddr, Vec<u8>)| {
+//!             println!("{}: {}", addr, String::from_utf8_lossy(&line));
+//!             Ok(line)
+//!         }))
+//!     });
+//! }
 //! ```
-use tokio_core::io::{Io, Codec, Framed, EasyBuf};
 use tokio_core::net::TcpStream;
 use tokio_proto::{pipeline, multiplex};
 use tokio_proto::pipeline::Pipeline;
 use tokio_proto::multiplex::{Multiplex, RequestId};
+use futures::{Future, Sink, Stream, Poll, StartSend, IntoFuture};
 use std::io;
 use std::net::SocketAddr;
 use std::marker::PhantomData;
 
-/// A wrapper protocol provides remote address of connection.
+/// A wrapper around another protocol that provides remote address of connection.
 /// This protocol implements only `ServerProto`.
-#[derive(Debug, Clone, Copy)]
-pub struct RemoteAddrProto<C, Kind> {
-    inner: C,
-    _kind: PhantomData<Kind>,
+#[derive(Debug, Clone)]
+pub struct RemoteAddrProto<Proto> {
+    inner: Proto,
 }
 
-impl<C: Clone, Kind> RemoteAddrProto<C, Kind> {
-    /// Creates a new `RemoteAddrProto` based on codec `inner`.
+impl<Proto> RemoteAddrProto<Proto> {
+    /// Creates a new `RemoteAddrProto` based on a protocol `inner`.
     #[inline]
-    pub fn new(inner: C) -> Self {
+    pub fn new(inner: Proto) -> Self {
         RemoteAddrProto {
             inner: inner,
-            _kind: PhantomData,
-        }
-    }
-
-    fn codec(&self, peer_addr: SocketAddr) -> RemoteAddrCodec<C, Kind> {
-        RemoteAddrCodec {
-            inner: self.inner.clone(),
-            peer_addr: peer_addr,
-            _kind: PhantomData,
         }
     }
 }
 
-impl<C> pipeline::ServerProto<TcpStream> for RemoteAddrProto<C, Pipeline>
-    where C: Codec + Clone + 'static
+impl<Proto> pipeline::ServerProto<TcpStream> for RemoteAddrProto<Proto>
+    where Proto: pipeline::ServerProto<TcpStream> + 'static,
 {
-    type Request = (SocketAddr, C::In);
-    type Response = C::Out;
-    type Transport = Framed<TcpStream, RemoteAddrCodec<C, Pipeline>>;
-    type BindTransport = io::Result<Self::Transport>;
+    type Request = (SocketAddr, Proto::Request);
+    type Response = Proto::Response;
+    type Transport = RemoteAddrTransport<Proto::Transport, Pipeline>;
+    type BindTransport = Box<Future<Item = Self::Transport, Error = io::Error>>;
 
     #[inline]
     fn bind_transport(&self, io: TcpStream) -> Self::BindTransport {
-        let addr = io.peer_addr()?;
-        Ok(io.framed(self.codec(addr)))
+        let addr: Result<_, _> = io.peer_addr();
+
+        Box::new(self.inner.bind_transport(io)
+            .into_future()
+            .and_then(move |t| {
+                addr.map(|addr| RemoteAddrTransport::new(t, addr))
+        }))
     }
 }
 
-impl<C, In, Out> multiplex::ServerProto<TcpStream> for RemoteAddrProto<C, Multiplex>
-    where C: Codec<In = (RequestId, In), Out = (RequestId, Out)> + Clone + 'static,
-          In: 'static,
-          Out: 'static
+impl<Proto> multiplex::ServerProto<TcpStream> for RemoteAddrProto<Proto>
+    where Proto: multiplex::ServerProto<TcpStream> + 'static,
 {
-    type Request = (SocketAddr, In);
-    type Response = Out;
-    type Transport = Framed<TcpStream, RemoteAddrCodec<C, Multiplex>>;
-    type BindTransport = io::Result<Self::Transport>;
+    type Request = (SocketAddr, Proto::Request);
+    type Response = Proto::Response;
+    type Transport = RemoteAddrTransport<Proto::Transport, Multiplex>;
+    type BindTransport = Box<Future<Item = Self::Transport, Error = io::Error>>;
 
     #[inline]
     fn bind_transport(&self, io: TcpStream) -> Self::BindTransport {
-        let addr = io.peer_addr()?;
-        Ok(io.framed(self.codec(addr)))
+        let addr: Result<_, _> = io.peer_addr();
+
+        Box::new(self.inner.bind_transport(io)
+            .into_future()
+            .and_then(move |t| {
+                addr.map(|addr| RemoteAddrTransport::new(t, addr))
+        }))
     }
 }
 
-/// Protocol codec used by [`RemoteAddrProto`](./struct.RemoteAddrProto.html).
-pub struct RemoteAddrCodec<C, Kind> {
-    inner: C,
+/// The transport used by [`RemoteAddrProto`](./struct.RemoteAddrProto.html).
+pub struct RemoteAddrTransport<Transport, Kind> {
+    inner: Transport,
     peer_addr: SocketAddr,
     _kind: PhantomData<Kind>,
 }
 
-impl<C, Kind> RemoteAddrCodec<C, Kind> {
-    /// Creates a new `RemoteAddrCodec` based on codec `inner`.
+impl<Transport, Kind> RemoteAddrTransport<Transport, Kind> {
+    /// Creates a new `RemoteAddrTransport` based on a transport `inner`.
     #[inline]
-    pub fn new(inner: C, peer_addr: SocketAddr) -> Self {
-        RemoteAddrCodec {
+    pub fn new(inner: Transport, peer_addr: SocketAddr) -> Self {
+        RemoteAddrTransport {
             inner: inner,
             peer_addr: peer_addr,
             _kind: PhantomData,
@@ -109,40 +107,60 @@ impl<C, Kind> RemoteAddrCodec<C, Kind> {
     }
 }
 
-impl<C> Codec for RemoteAddrCodec<C, Pipeline>
-    where C: Codec
+impl<Transport> Stream for RemoteAddrTransport<Transport, Pipeline>
+    where Transport: Stream
 {
-    type In = (SocketAddr, C::In);
-    type Out = C::Out;
+    type Item = (SocketAddr, Transport::Item);
+    type Error = Transport::Error;
 
     #[inline]
-    fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Self::In>> {
-        self.inner
-            .decode(buf)
-            .map(|item| item.map(|item| (self.peer_addr, item)))
-    }
-
-    #[inline]
-    fn encode(&mut self, item: Self::Out, buf: &mut Vec<u8>) -> io::Result<()> {
-        self.inner.encode(item, buf)
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        self.inner.poll().map(|async| async.map(|ok| ok.map(|item| (self.peer_addr, item))))
     }
 }
 
-impl<C, In, Out> Codec for RemoteAddrCodec<C, Multiplex>
-    where C: Codec<In = (RequestId, In), Out = (RequestId, Out)>
+impl<Transport> Sink for RemoteAddrTransport<Transport, Pipeline>
+    where Transport: Sink,
 {
-    type In = (RequestId, (SocketAddr, In));
-    type Out = (RequestId, Out);
+    type SinkItem = Transport::SinkItem;
+    type SinkError = Transport::SinkError;
 
     #[inline]
-    fn decode(&mut self, buf: &mut EasyBuf) -> io::Result<Option<Self::In>> {
-        self.inner
-            .decode(buf)
-            .map(|item| item.map(|(reqid, item)| (reqid, (self.peer_addr, item))))
+    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        self.inner.start_send(item)
     }
 
     #[inline]
-    fn encode(&mut self, item: Self::Out, buf: &mut Vec<u8>) -> io::Result<()> {
-        self.inner.encode(item, buf)
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        self.inner.poll_complete()
+    }
+}
+
+impl<Transport, T> Stream for RemoteAddrTransport<Transport, Multiplex>
+    where Transport: Stream<Item = (RequestId, T)>
+{
+    type Item = (RequestId, (SocketAddr, T));
+    type Error = Transport::Error;
+
+    #[inline]
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        self.inner.poll().map(|async| async.map(|ok| ok.map(|(id, item)| (id, (self.peer_addr, item)))))
+    }
+}
+
+impl<Transport> Sink for RemoteAddrTransport<Transport, Multiplex>
+    where Transport: Sink,
+{
+    type SinkItem = Transport::SinkItem;
+    type SinkError = Transport::SinkError;
+
+    #[inline]
+    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        self.inner.start_send(item)
+    }
+
+    #[inline]
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        self.inner.poll_complete()
     }
 }
